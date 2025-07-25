@@ -67,7 +67,7 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
                         )
         yield tuple(slicer), Z_ind, out_filename, out_file_max
 
-def cziwr(path:str = '', filelist:List[str] = []):
+def cziwr(path:str = '', filelist:List[str] = [], prefix_splitter:str = '405'):
     if not os.path.exists(os.path.join(path,'tiff/')):
         os.mkdir(os.path.join(path,'tiff/'))
     for file in filelist:
@@ -85,12 +85,13 @@ def cziwr(path:str = '', filelist:List[str] = []):
             # cziimg.shape = (1, 1, 2, 1, 3, 34, 1000, 1000, 1)
             axes = cziimg.axes
             shape = cziimg.shape
-            file_pref = file.split('2025')[0] # this might have to be fine tuned
+            file_pref = file.split(prefix_splitter)[0] # this might have to be fine tuned
             scalefactorstrings = cziimg.metadata().split('<Distance Id="X">')[1].split('</Distance>')
             scalefactorX = float(scalefactorstrings[0].split('</Value>')[0].split('<Value>')[1])
             scalefactorY = float(scalefactorstrings[1].split('</Value>')[0].split('<Value>')[1])
             scalefactorZ = float(scalefactorstrings[2].split('</Value>')[0].split('<Value>')[1])
             img_array = cziimg.asarray()
+
         for ind, Z_ind, out_filename, out_file_max in iter_multi_axes(axes,shape,file_pref=file_pref):
             img = img_array[ind]
             # check scale factor
@@ -100,7 +101,7 @@ def cziwr(path:str = '', filelist:List[str] = []):
                 in czi file the resolution unit is meter/pixel
                 in tiff file the resolution unit is pixel/resUnit (Code 296)
             '''
-            tifffile.imwrite(path + 'tiff/' + out_filename + '.tif', img,
+            tifffile.imwrite(os.path.join(path, 'tiff', out_filename + '.tif'), img,
                             shape=img.shape,
                             imagej=True,
                             dtype=img.dtype,
@@ -113,7 +114,7 @@ def cziwr(path:str = '', filelist:List[str] = []):
             # max projection
             if (Z_ind is not None) and (img.ndim >= 3):
                 maxproj = np.max(img, axis = Z_ind)
-                tifffile.imwrite(path + 'tiff\\' + out_file_max + '.tif', maxproj,
+                tifffile.imwrite(os.path.join(path, 'tiff', out_file_max + '.tif'), maxproj,
                                  shape=maxproj.shape,
                                  imagej=True,
                                  dtype=maxproj.dtype,
@@ -123,6 +124,14 @@ def cziwr(path:str = '', filelist:List[str] = []):
                                  metadata={
                                      'unit': 'micron',
                                      'axes': 'YX'})
+
+def callcziwr(path=""):
+    if not os.path.exists(path): print(f'path {path} not exists');return
+    filelist = [f for f in os.listdir(path) if f.endswith('.czi')]
+    print(path, filelist)
+    cziwr(path,filelist=filelist)
+    return
+    #
 
 #def tiff2jpeg(path = '', filelist = []):
 #    if not os.path.exists(path+'tiff/'):

@@ -1,34 +1,35 @@
 import tifffile
 import cv2
+
 import numpy as np
+
 import matplotlib.pyplot as plt
 import os
 import math
 
-path = 'C:\\Users\\pathaklab\\Box\\HyperOsmo\\20250617_IF_exposure_prolongRecov\\Exposure\\2025-06-17\\'
-#path = 'C:\\Users\\pathaklab\\Box\\HyperOsmo\\20250617_IF_exposure_prolongRecov\\Exposure\\Test\\'
+path = '/mnt/SammyRis/Sammy/2025072021_exp_recov_max_proj/'
 
-if not os.path.exists(path+'tiff\\'):
-    print('path not exist')
-    exit()
-if not os.path.exists(path+'jpeg'):
+if not os.path.exists(os.path.join(path+'jpeg')):
     os.mkdir(path+'jpeg')
 
-filelist = os.listdir(path+'tiff\\')
+filelist = os.listdir(path)
 #filelist = ['MAX_2025-03-28-10AWT_Ctrl_001_405_nuc_488_pax_555_actin_647_NMIIa_C2.tif']
 filenames = []
 img = 0
 temp = 0
 bin = range(256)
 freq = np.zeros((256,),dtype = np.int64) #[range = 0~1<<32-1]
-filter = 'max_C0'
+filter = 'max_C0.tif'
+print(filter)
 for file in filelist:
     if not file.endswith('.tif') and not file.endswith('.tiff') or file.find(filter)==-1:
+        # print(file)
         # filer 'max' to only select max proj
         continue
     filenames.append(file)
+    # print(filenames)
     #with tifffile.TiffFile(path+file) as tifimg:
-    with tifffile.TiffFile(path + 'tiff\\' + file) as tifimg:
+    with tifffile.TiffFile(os.path.join(path, file)) as tifimg:
         #print(file)
         temp = tifimg.asarray()
         if len(filenames) == 1:
@@ -47,18 +48,20 @@ filenum = len(filenames)
 
 #print(img.max(axis=0).max(axis=0))
 # plot histogram freq
+print(filenames)
 plt.bar(bin, freq)
+print('finish plt')
 plt.title("Histogram of original image")
 plt.xlabel("Pixel value")
 plt.ylabel("Frequency")
-plt.show()
+plt.show(block=False)
 
 # show all images
 column = math.ceil(math.sqrt(len(filenames)))
 row = math.ceil(len(filenames)/column)
 f, ax = plt.subplots(row, column)
 edge = min(f.get_size_inches())
-f.set_size_inches(edge*column, edge*row)
+# f.set_size_inches(edge*column, edge*row)
 #f.set_dpi(f.get_dpi()*max(row,column))
 print('column = ', column, 'row = ', row)
 
@@ -89,10 +92,11 @@ while True:
 
 
     # manual change threshold
-    manual_change_max = False
+    manual_change_max = True
     if manual_change_max:
         ans = input('max intensity = ' + str(max_intensity) + ' enter new:')
-        max_intensity = int(ans)
+        try: max_intensity = int(ans)
+        except: print("cannot convert to int"); break
     else:
         break
     if max_intensity == 0:
@@ -104,6 +108,6 @@ while True:
 #save images
 for i in range(filenum):
     rgb = cv2.cvtColor(stretched[:,:,i], cv2.COLOR_GRAY2BGR)
-    cv2.imwrite(path+'jpeg\\'+filenames[i].split(".tif")[0]+".jpg", rgb)
+    cv2.imwrite(os.path.join(path,'jpeg',filenames[i].split(".tif")[0]+".jpg"), rgb)
 
-f.savefig(path+'jpeg\\'+filter+'_box.jpeg',transparent=True)
+f.savefig(os.path.join(path,'jpeg',filter+'_box.jpeg'),transparent=True)

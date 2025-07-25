@@ -2,13 +2,18 @@ import numpy as np
 import pyvista as pv
 import tifffile
 
-def alpha_shape(points = None,alpha:int = 0.1):
-    if points==None:
+def alpha_shape(points = None,alpha:int = 0.3):
+    if points is None:
         points = np.random.rand(100, 3) # meaning 100 random points in 3D space
+    if points.dtype != 'float': points = np.float32(points)
+    print(points.shape)
+    print("cloud")
     cloud = pv.PolyData(points)
-    tetra = cloud.delaunay_3D(alpha=alpha)
+    print("tetra")
+    tetra = cloud.delaunay_3d(alpha=alpha)
+    print("shell")
     shell = tetra.extract_geometry()
-
+    print("plotter")
     if 1: # to plot
         plotter = pv.Plotter()
         plotter.add_mesh(shell,color='lightblue',opacity=0.6)
@@ -20,4 +25,3 @@ if __name__ == '__main__':
     file = ''
     if path == '':
         alpha_shape()
-

@@ -2,7 +2,6 @@ import os
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-import cv2
 import tifffile
 from dask.array import outer
 from dask.array.reshape import contract_tuple
@@ -182,11 +181,11 @@ def delete_bad(label_mask, bad_label):
             new_label += 1
     return label_mask
 
-
 if __name__ =='__main__':
     napari_view = 1 # the switch to turn on / off napari
-    path = 'C:\\Users\\pathaklab\\Box\\HyperOsmo\\20250617_IF_exposure_prolongRecov\\Exposure\\2025-06-17\\tiff\\3D_hoechst_masks\\'
-    filename = '2025-06-17-10AWT_Hypo33_002_C3'
+    path = '/mnt/SammyRis/Sammy/2025072021_exp_recov_3D/mask_ani_5_diam_150/'
+    filename = '2025-07-20_10AWT_Ctrl_02_63x_001_C3'
+    print(filename)
     print(os.getcwd(),path)
 
     if not os.path.exists(path):print(f"path {path} not exists");exit()
@@ -239,7 +238,7 @@ if __name__ =='__main__':
             manual_filtered_convex_hull = manual_filtered_convex_hull_mask)
     exit()
 
-
+'''
 masks = np.load(path+filename, allow_pickle=True)
 print(masks.item()['filename']) # dict_keys(['outlines', 'masks', 'chan_choose', 'ismanual', 'filename', 'flows', 'diameter'])
 print(type(masks.item()['masks']))
@@ -263,3 +262,4 @@ count_roi = np.sum(roi_bool)
 std_intensity = np.std(img_roi)
 sem_intensity = std_intensity / math.sqrt(count_roi)
 #for f in files:
+'''

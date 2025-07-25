@@ -1,6 +1,6 @@
 import argparse
 import os
-# from . import image_utils
+from . import image_utils
 from . import directional_analysis
 
 def main():
@@ -21,7 +21,9 @@ def main():
     group_cytomask.add_argument('--dir',type=str)
     group_cytomask.add_argument('--filepath',type=str)
     parser_cytomask.add_argument('--filter',type=str,required=True)
-    parser_cytomask.add_argument('--eps',type=float)
+    parser_cytomask.add_argument('--sigma',type=float,help='Sigma for gaussian window,default 0.2')
+    parser_cytomask.add_argument('--eps',type=float,help='Gradient structural tensor energy threshold, default 1e-7')
+    parser_cytomask.add_argument('--dilwid',type=int,help='Dilation width for binary closing, default 3')
 
 
     args = parser.parse_args()
@@ -31,11 +33,11 @@ def main():
         taken = True
         if args.filepath:
             print(f'cziwr({os.path.dirname(args.filepath)},{[os.path.basename(args.filepath)]})')
-            #image_utils.cziwr(os.path.dirname(args.filepath),
-            #                  [os.path.basename(args.filepath)])
+            image_utils.cziwr(os.path.dirname(args.filepath),
+                              [os.path.basename(args.filepath)])
         elif args.dir:
             print(f'callcziwr({args.dir})')
-            #image_utils.callcziwr(args.dir)
+            image_utils.callcziwr(args.dir)
     if args.command == 'tiff2jpeg':
         taken = True
         if args.filepath:
@@ -47,13 +49,13 @@ def main():
             #image_utils.calltiff2jpeg(args.dir)
     if args.command == 'cytomask':
         taken = True
+        # batch_process_cyto_mask_fiber(path:str = "", filename:str = "", filter:str = "",sigma:int = 0.2,eps:float|None = None, dilation_width:int = 3)
         if args.dir:
-            print(f'directional_analysis.batch_process_cyto_mask_fiber(args.dir,filter=args.filter,eps=args.eps)')
-            # directional_analysis.batch_process_cyto_mask_fiber(args.dir,filter=args.filter,eps=args.eps)
+            filepath=args.dir; filename = ""
         elif args.filepath:
-            print(f'directional_analysis.batch_process_cyto_mask_fiber({os.path.dirname(args.filepath)},'
-                  f'{os.path.basename(args.filepath)},filter={args.filter},eps={args.eps}:{type(args.eps)})')
-            # directional_analysis.batch_process_cyto_mask_fiber(os.path.dirname(args.filepath),os.path.basename(args.filepath),filter=args.filter,eps=args.eps)
+            filepath = os.path.dirname(args.filepath); filename = os.path.basename(args.filepath)
+        directional_analysis.batch_process_cyto_mask_fiber(path=filepath,filename=filename,
+                                                            filter=args.filter,sigma=args.sigma,eps=args.eps,dilation_width=args.dilwid)
     if taken == False:
         parser.print_help()
 
