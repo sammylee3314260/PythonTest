@@ -10,6 +10,7 @@ def main():
     group_cziwr = parser_cziwr.add_mutually_exclusive_group(required = True)
     group_cziwr.add_argument('--dir',type=str)
     group_cziwr.add_argument('--filepath',type=str)
+    parser_cziwr.add_argument('--splitter',type=str,help='splitter string for filename, default is \'405\'')
 
     parser_tiff2jpeg = subparser.add_parser('tiff2jpeg',help='tiff to jpeg + tune bright and contrast')
     group_tiff2jpeg = parser_tiff2jpeg.add_mutually_exclusive_group(required=True)

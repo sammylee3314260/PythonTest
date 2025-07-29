@@ -19,7 +19,7 @@ img = 0
 temp = 0
 bin = range(256)
 freq = np.zeros((256,),dtype = np.int64) #[range = 0~1<<32-1]
-filter = 'max_C0.tif'
+filter = 'max_C2.tif'
 print(filter)
 for file in filelist:
     if not file.endswith('.tif') and not file.endswith('.tiff') or file.find(filter)==-1:

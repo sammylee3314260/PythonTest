@@ -33,7 +33,7 @@ def analy_display(image,theta,coherency,energy):
         
     plt.subplot(2,3, 2)
     plt.title("Coherency")
-    plt.imshow(coherency, cmap='gray',vmin=0,vmax=np.percentile(coherency,75))
+    plt.imshow(coherency, cmap='gray',vmin=0,vmax=np.percentile(coherency,95))
     plt.colorbar();plt.axis('off');plt.tight_layout()
 
     plt.subplot(2,3, 3)

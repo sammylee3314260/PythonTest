@@ -38,7 +38,7 @@ def cyto_quant(image, mask,properties = None):
     if not properties: return regionprops_table(label_image=mask,intensity_image=image)
     return regionprops_table(label_image=mask,intensity_image=image,properties=properties)
 
-def call_cyto_quant(path = "", img_filter="", mask_filter="",pattern="",mask_name="",eps = 1e-4,display=False,cellpose = False):
+def call_cyto_quant(path = "", img_filter="", mask_filter="",pattern="",mask_name="",sigma = 2,eps = 1e-4,display=False,cellpose = False,concat=[]):
     if not os.path.exists(path): print(f"path {path} not exists");return
     filelist = os.listdir(path)
     imglist = [f for f in filelist if f.find('.tif')!=-1]
@@ -56,7 +56,7 @@ def call_cyto_quant(path = "", img_filter="", mask_filter="",pattern="",mask_nam
 
     # '10A_5kPa_Ctrl_POS48h_40xoil_max_C2.tif'
     # '10A_5kPa_Ctrl_POS48h_40xoil_max_C1_cytomask.npy'
-        maskfile = '_'.join(list(match.groups()[0:-1])+[mask_filter])
+        maskfile = '_'.join(list(match.groups()[0:-1])+concat)
 
         if not os.path.exists(os.path.join(path,maskfile)): print(f"file {os.path.join(path,maskfile)} not exists");continue
         with tifffile.TiffFile(os.path.join(path,f)) as tifimg:
@@ -75,13 +75,16 @@ def call_cyto_quant(path = "", img_filter="", mask_filter="",pattern="",mask_nam
         df = pd.DataFrame(cyto_quant(img, mask, properties))
         
         
-        if False: # directional analysis
-            theta , coherence, energy = directional_analysis.compute_orientation_tensor_2d(img,eps = eps)
+        if True: # directional analysis
+            theta , coherence, energy = directional_analysis.compute_orientation_tensor_2d(img, sigma=sigma, eps=eps)
             if display: image_display.analy_display(img,theta,coherence,energy)
             coherence_nan = np.where(mask,coherence,np.nan)
             df['coherence_avg'] = np.nanmean(coherence_nan); df['coherence_median'] = np.nanmedian(coherence_nan)
+        # 2025-07-21_10AWT_Hyper969_02_63x_002_max_C1_cytomask.npy
+        # pattern = r'(?P<prefix>.+?)_(?P<type>\w+?)_(?P<group>\w+?)_(?P<slnum>\d+?)_(?P<magni>\w+?)_(?P<scnum>\d+?)_max_(?P<channel>\w+)'
         df['Date'] = match.group('prefix')
         df['Group'] = match.group('group')
+        # df['Time'] = match.group('time')
         df['Image'] = name;df['Mask'] = os.path.splitext(maskfile)[0]
         all_data.append(df)
     
@@ -132,21 +135,24 @@ def call_nuc_phys(path = "", mask_filter="",pattern="",mask_name="",spacing=None
 
 
 if __name__ == '__main__':
-    path = '/mnt/SammyRis/Sammy/2025072021_exp_recov_3D/'
-    filename = '2025072021_nuclear_Ki67'
+    path = '/mnt/SammyRis/Sammy/YAP_Actin_lamAC_max_proj/'
+    filename = 'YAP_Actin_lamAC_nuclear_LamAC'
     mask_name='manual_filtered'
-    img_filter = 'C0.tif' # C1:actin, C2: vimentin C0: Ki67, C3:hoechst
-    mask_filter = 'C3_masks.npz'
-    # 10A_5kPa_Ctrl_POS24h_40xoil_max_C0_seg
-    pattern = r'(?P<prefix>.+?)_(?P<type>\w+?)_(?P<group>\w+?)_(?P<slnum>\d+?)_(?P<magni>\w+?)_(?P<scnum>\d+?)_(?P<channel>\w+)'
+    img_filter = 'C3.tif' # C1:actin, C2: vimentin C0: Ki67, C3:hoechst
+    mask_filter = 'C3_seg.npy'
+    # 2025-07-21_10AWT_Ctrl_01_63x_001_max_C2.tif
+    # 2025-07-21_10AWT_Hyper969_02_63x_002_max_C1_cytomask.npy
+    pattern = r'(?P<prefix>.+?)_(?P<type>\w+?)_(?P<group>\w+?)_(?P<slnum>\d+?)_(?P<magni>\w+?)_(?P<scnum>\d+?)_max_(?P<channel>\w+)'
+    #I can directly use split('_') for this instead of regex to generalize the package
+
     if 0: # new 3D nucleus analysis
         if not os.path.exists(path): print(f"Path {path} not exists.");exit()
-        df, order = call_cyto_quant(path,img_filter,mask_filter,pattern,mask_name=mask_name)
+        df, order = call_cyto_quant(path,img_filter,mask_filter,pattern,cellpose=True,mask_name=mask_name,concat=['max',mask_filter])
         df.to_pickle(os.path.join(path,filename+".pkl"))
         df.to_csv(os.path.join(path, filename+".csv"),index=False)
     elif 0: # new 2D cytoplasm analysis
         if not os.path.exists(path): print(f"Path {path} not exists.");exit()
-        df, order = call_cyto_quant(path,img_filter,mask_filter,pattern,eps=2e-4)
+        df, order = call_cyto_quant(path,img_filter,mask_filter,pattern,sigma=2,eps=2e-4,cellpose=False,concat=['max',mask_filter])
         df.to_pickle(os.path.join(path,filename+".pkl"))
         df.to_csv(os.path.join(path, filename+".csv"),index=False)
     elif 1: # read from saved
@@ -162,49 +168,46 @@ if __name__ == '__main__':
     fignum = 0
     df_ori = df
     order.append('All')
+    order = ['Hyper969 POS24h','Hyper484 POS24h','Ctrl POS24h','Hypo66 POS24h','Hypo50 POS24h','Hypo33 POS24h','Ctrl POS48h','Hypo66 POS48h','Hypo50 POS48h','Hypo33 POS48h','All']
     colors = sns.color_palette("dark:gray",n_colors=len(order)+2)[0:len(order)]
     palette = dict(zip(order,colors))
 
-    # plot_data = 'intensity_sum'
-    plot_data = 'intensity_std'
-    
-    # df[plot_data] = df['area'] * df['intensity_mean']
+    plot_data = 'intensity_mean'
+    plot_data = 'coherence_avg'
+    df['GroupTime'] = df['Group'].astype(str) + ' ' + df['Time']
+    df[plot_data] = df['area'] * df['intensity_mean']
     df_all = df.copy()
-    df_all['Group'] = 'All'
+    df_all['GroupTime'] = 'All'
     df_combined = pd.concat([df,df_all],ignore_index=True)
     df = df_combined
-    '''
-    sns.barplot(data=df,x='Group',y=plot_data,order=order,estimator=np.mean,palette=palette, errorbar='se',capsize=0.2)
-    sns.stripplot(data=df,x='Group',y=plot_data,order=order)
+    
+    sns.barplot(data=df,x='GroupTime',y=plot_data,order=order,estimator=np.mean,palette=palette, errorbar='se',capsize=0.2)
+    sns.stripplot(data=df,x='GroupTime',y=plot_data,order=order)
     plt.show()
-    exit()'''
-
+    exit()
 
     fignum += 1; plt.figure(fignum)
     fig, axes = plt.subplots(2,1,num=fignum)
-    fig.suptitle("Ki67",weight='bold')
+    fig.suptitle("Vimentin Coherency",weight='bold')
     # sns.barplot(data=df[df['Date']=='2025-07-20'],x='Group',y=plot_data,order=order,estimator=np.mean,palette=palette, errorbar='se',capsize=0.2,ax=axes[0])
-    sns.violinplot(data=df[df['Date']=='2025-07-20'],x='Group',y=plot_data,order=order,palette=palette,ax=axes[0])
-    sns.stripplot(data=df[df['Date']=='2025-07-20'],x='Group',y=plot_data,order=order,ax=axes[0])
-    axes[0].set_title("Exposure 24 hr",weight='bold')
-    axes[0].set_ylabel("Intensity",weight='bold')
-    # axes[0].set_ylim(-20,120)
-    axes[0].spines['top'].set_visible(False)
-    axes[0].spines['right'].set_visible(False)
-    axes[0].spines['left'].set_linewidth(2)
-    axes[0].spines['bottom'].set_linewidth(2)
-    axes[0].tick_params(axis='both',which='major',width=2,length = 6)
+    axesnum = 0
+    sns.violinplot(data=df[df['Date']=='2025-07-20'],x='Group',y=plot_data,order=order,palette=palette,ax=axes[axesnum])
+    sns.stripplot(data=df[df['Date']=='2025-07-20'],x='Group',y=plot_data,order=order,ax=axes[axesnum])
+    axes[axesnum].set_title("Exposure 24 hr",weight='bold')
+    axesnum = 1
     # sns.barplot(data=df[df['Date']=='2025-07-21'],x='Group',y=plot_data,order=order,estimator=np.mean,palette=palette, errorbar='se',capsize=0.2,ax=axes[1])
-    sns.violinplot(data=df[df['Date']=='2025-07-21'],x='Group',y=plot_data,order=order,palette=palette,ax=axes[1])
-    sns.stripplot(data=df[df['Date']=='2025-07-21'],x='Group',y=plot_data,order=order,ax=axes[1])
-    axes[1].set_title("Recover 24 hr",weight='bold')
-    axes[1].set_ylabel("Intensity",weight='bold')
-    # axes[1].set_ylim(-20,120)
-    axes[1].spines['top'].set_visible(False)
-    axes[1].spines['right'].set_visible(False)
-    axes[1].spines['left'].set_linewidth(2)
-    axes[1].spines['bottom'].set_linewidth(2)
-    axes[1].tick_params(axis='both',which='major',width=2,length = 6)
+    sns.violinplot(data=df[df['Date']=='2025-07-21'],x='Group',y=plot_data,order=order,palette=palette,ax=axes[axesnum])
+    sns.stripplot(data=df[df['Date']=='2025-07-21'],x='Group',y=plot_data,order=order,ax=axes[axesnum])
+    axes[axesnum].set_title("Recover 24 hr",weight='bold')
+    for ax in axes.flat:
+        ax.set_ylabel("Coherency mean",weight='bold')
+        ax.set_xlabel(None)
+        ax.set_ylim(-0.25,1.25)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(2)
+        ax.spines['bottom'].set_linewidth(2)
+        ax.tick_params(axis='both',which='major',width=2,length = 6)
     fig.tight_layout()
     plt.show()
     exit()

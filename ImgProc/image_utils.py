@@ -55,15 +55,15 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
             slicer[axes_map[ax]] = idx
         for ax in pres_axes:
             if ax in axes_map and not ax in loop_axes: slicer[axes_map[ax]] = slice(None)
-        out_filename = (file_pref
-                        + ('S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
-                        + ('T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
-                        + ('C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
+        out_filename = (file_pref[0:-1]
+                        + ('_S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
+                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
+                        + ('_C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
                         )
-        out_file_max = (file_pref + 'max_'
-                        + ('S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
-                        + ('T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
-                        + ('C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
+        out_file_max = (file_pref + 'max'
+                        + ('_S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
+                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
+                        + ('_C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
                         )
         yield tuple(slicer), Z_ind, out_filename, out_file_max
 
@@ -85,7 +85,8 @@ def cziwr(path:str = '', filelist:List[str] = [], prefix_splitter:str = '405'):
             # cziimg.shape = (1, 1, 2, 1, 3, 34, 1000, 1000, 1)
             axes = cziimg.axes
             shape = cziimg.shape
-            file_pref = file.split(prefix_splitter)[0] # this might have to be fine tuned
+            file_pref = file.split(prefix_splitter)[0]
+            if file_pref[-1]!='_': file_pref=file_pref+'_' # this might have to be fine tuned
             scalefactorstrings = cziimg.metadata().split('<Distance Id="X">')[1].split('</Distance>')
             scalefactorX = float(scalefactorstrings[0].split('</Value>')[0].split('<Value>')[1])
             scalefactorY = float(scalefactorstrings[1].split('</Value>')[0].split('<Value>')[1])

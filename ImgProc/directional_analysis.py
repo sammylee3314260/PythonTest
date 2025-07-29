@@ -167,7 +167,8 @@ def compute_orientation_tensor_tf_3d(image, sigma:float = 0.2, eps:float = 1e-7,
 
 if __name__ == "__main__":
     # path = "/mnt/SammyRis/Sammy/20250617_tiff/max_nucleus/"; filename = "2025-06-17-10AWT_Ctrl_001_max_C3.tif"
-    path = "/mnt/SammyRis/Sammy/YAP_Actin_lamAC_3D_masks_40x/";filename="10A_5kPa_Ctrl_POS48h_40xoil_C1.tif"
+    path = "/mnt/SammyRis/Sammy/2025072021_exp_recov_max_proj/"
+    filename="2025-07-21_10AWT_Ctrl_01_63x_002_max_C1.tif"
 
     if not os.path.exists(path): print(f"path {path} not exist");exit()
     with tifffile.TiffFile(os.path.join(path+filename)) as tifimg:
@@ -176,8 +177,8 @@ if __name__ == "__main__":
     
     # hessian_img = hessian(image)
 
-    if 0: #plot
-        theta, coherency, energy = compute_orientation_tensor_2d(image,0.2,energy_thresh)
+    if 1: #plot
+        theta, coherency, energy = compute_orientation_tensor_2d(image,sigma=2,eps=energy_thresh)
         image_display.analy_display(image,theta,coherency,energy)
         # plt.show()
 
@@ -185,5 +186,5 @@ if __name__ == "__main__":
         mask = cytoplasm_mask_fiber_2d(image,sigma=1,eps = energy_thresh)
         image_display.mask_display(mask)
 
-    if 1: # plot 3D stack analy
+    if 0: # plot 3D stack analy
         call_cyto_mask_fiber(path, filename,sigma=1, eps=1e-6,dilation_width=2,manual_tune=True)
