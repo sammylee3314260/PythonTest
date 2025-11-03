@@ -145,7 +145,7 @@ if __name__ == '__main__':
     pattern = r'(?P<prefix>.+?)_(?P<type>\w+?)_(?P<group>\w+?)_(?P<slnum>\d+?)_(?P<magni>\w+?)_(?P<scnum>\d+?)_max_(?P<channel>\w+)'
     #I can directly use split('_') for this instead of regex to generalize the package
 
-    if 0: # new 3D nucleus analysis
+    if 1: # new 3D nucleus analysis
         if not os.path.exists(path): print(f"Path {path} not exists.");exit()
         df, order = call_cyto_quant(path,img_filter,mask_filter,pattern,cellpose=True,mask_name=mask_name,concat=['max',mask_filter])
         df.to_pickle(os.path.join(path,filename+".pkl"))
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         df.to_csv(os.path.join(path, filename+".csv"),index=False)
     elif 1: # read from saved
         file = filename+'.pkl'
-        df=pd.read_pickle(os.path.join(path,file))
+        df = pd.read_pickle(os.path.join(path,file))
         order = df['Group'].drop_duplicates().tolist()
     elif 0: # analyse nuclear physical properties
         df, order = call_nuc_phys(path,mask_filter,pattern,mask_name)

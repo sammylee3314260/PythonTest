@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import os
 import math
 
-path = '/mnt/SammyRis/Sammy/2025072021_exp_recov_max_proj/'
+path = '/mnt/box/HyperOsmo/20250828_Exposure_Recov_05h/tiff/max_proj/'
 
 if not os.path.exists(os.path.join(path+'jpeg')):
     os.mkdir(path+'jpeg')

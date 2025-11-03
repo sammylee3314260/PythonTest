@@ -10,12 +10,19 @@ def main():
     group_cziwr = parser_cziwr.add_mutually_exclusive_group(required = True)
     group_cziwr.add_argument('--dir',type=str)
     group_cziwr.add_argument('--filepath',type=str)
-    parser_cziwr.add_argument('--splitter',type=str,help='splitter string for filename, default is \'405\'')
+    parser_cziwr.add_argument('--splitter',type=str,help='splitter string for filename, default is \'.czi\'')
+
+    parser_cziwr = subparser.add_parser('aics_cziwr',help = 'Iterate CZI, transfer to tiff, open with aicspylibczi package')
+    group_cziwr = parser_cziwr.add_mutually_exclusive_group(required = True)
+    group_cziwr.add_argument('--dir',type=str)
+    group_cziwr.add_argument('--filepath',type=str)
+    parser_cziwr.add_argument('--splitter',type=str,help='splitter string for filename, default is \'.czi\'')
 
     parser_tiff2jpeg = subparser.add_parser('tiff2jpeg',help='tiff to jpeg + tune bright and contrast')
     group_tiff2jpeg = parser_tiff2jpeg.add_mutually_exclusive_group(required=True)
     group_tiff2jpeg.add_argument('--dir', type=str)
     group_tiff2jpeg.add_argument('--filepath',type=str)
+    parser_tiff2jpeg.add_argument('--filter',type=str,help='filename filter, default is \'.tif\'')
 
     parser_cytomask = subparser.add_parser('cytomask',help='Generate cytoplasm mask with fiber analysis')
     group_cytomask = parser_cytomask.add_mutually_exclusive_group(required=True)
@@ -33,21 +40,30 @@ def main():
     if args.command == 'cziwr':
         taken = True
         if args.filepath:
-            print(f'cziwr({os.path.dirname(args.filepath)},{[os.path.basename(args.filepath)]})')
+            print('cziwr()')
             image_utils.cziwr(os.path.dirname(args.filepath),
-                              [os.path.basename(args.filepath)])
+                              [os.path.basename(args.filepath)], args.splitter)
         elif args.dir:
-            print(f'callcziwr({args.dir})')
-            image_utils.callcziwr(args.dir)
+            print('callcziwr()')
+            image_utils.callcziwr(args.dir, args.splitter)
+    if args.command == 'aics_cziwr':
+        taken = True
+        if args.filepath:
+            print('aics_cziwr()')
+            image_utils.aics_cziwr(os.path.dirname(args.filepath),
+                                   [os.path.basename(args.filepath)], args.splitter)
+        elif args.dir:
+            print('call_aics_cziwr()')
+            image_utils.call_aics_cziwr(args.dir, args.splitter)
     if args.command == 'tiff2jpeg':
         taken = True
         if args.filepath:
-            print(f'tiff2jpeg({os.path.dirname(args.filepath)},{[os.path.basename(args.filepath)]})')
-            #image_utils.tiff2jpeg(os.path.dirname(args.filepath),
-            #                          [os.path.basename(args.filepath)])
+            print(f'tiff2jpeg()')
+            image_utils.tiff2jpeg(os.path.dirname(args.filepath),
+                                      [os.path.basename(args.filepath)])
         elif args.dir:
-            print(f'calltiff2jpeg({args.dir})')
-            #image_utils.calltiff2jpeg(args.dir)
+            print(f'calltiff2jpeg()')
+            image_utils.calltiff2jpeg(args.dir,args.filter)
     if args.command == 'cytomask':
         taken = True
         # batch_process_cyto_mask_fiber(path:str = "", filename:str = "", filter:str = "",sigma:int = 0.2,eps:float|None = None, dilation_width:int = 3)
