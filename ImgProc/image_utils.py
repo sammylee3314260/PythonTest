@@ -21,17 +21,24 @@ import xml.etree.ElementTree as ET
 def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
                     shape:Tuple[int,...] = (1, 1, 4, 1, 16, 1024, 1024, 1),# = None,
                     iter_axes:Dict[str,...] = {'S','T','C'},
-                    pres_axes:Dict[str,...] = {'X','Y','Z'},
+                    pres_axes:Dict[str,...] = {'X','Y'},
+                    stack_index: str = 'Z',
                     file_pref:str = "img_") ->(
                     Generator[tuple[tuple[int|None,...],int|None,str,str],None,None]):
-
     axes_map = {ax:i for i,ax in enumerate(axes)}
     # check axes for filename
-    is_multi_scene, is_multi_time, is_multi_channel = False,False,False
+    is_multi_scene, is_multi_time, is_multi_channel, is_Zstack = False,False,False, False
     if 'S' in axes_map and shape[axes_map['S']] > 1: is_multi_scene = True
     if 'T' in axes_map and shape[axes_map['T']] > 1: is_multi_time = True
     if 'C' in axes_map and shape[axes_map['C']] > 1: is_multi_channel = True
-
+    if 'Z' in axes_map and shape[axes_map['Z']] > 1: is_Zstack = True
+    if is_Zstack:
+        pres_axes.add('Z')
+    elif is_multi_time:
+        iter_axes.remove('T')
+        pres_axes.add('T')
+    print(iter_axes, pres_axes)
+    
     # check if the to-be-iterated axes exist,
     # if so add to iter_axes
     loop_axes = []
@@ -42,8 +49,7 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
             loop_axes.append(ax)
             loop_range.append(range(shape[axes_map[ax]]))
     Z_ind = None
-    if 'Z' in axes_map and 'Z' in pres_axes: # check if this img is 3D, if so return index of Z
-        pres_ind = []
+    if 'Z' in axes_map and 'Z' in pres_axes: # check if this img is 3D, if so return new index of Z
         cnt = 0
         for ax in axes_map:
             if ax == 'Z': Z_ind = cnt; break
@@ -57,12 +63,12 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
             # This is a very important line, slice(None) = [:] so we can take the whole stack!
         out_filename = (file_pref[0:-1]
                         + ('_S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
-                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
+                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time and 'T' in iter_axes else '')
                         + ('_C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
                         )
         out_file_max = (file_pref + 'max'
                         + ('_S' + str(slicer[axes_map.get('S')]) if is_multi_scene else '')
-                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time else '')
+                        + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time and 'T' in iter_axes else '')
                         + ('_C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
                         )
         yield tuple(slicer), Z_ind, out_filename, out_file_max
@@ -189,8 +195,8 @@ def aics_cziwr(path:str = '', filelist:List[str] = [], prefix_splitter:str|None 
         cziimg = aicspylibczi.CziFile(os.path.join(path,file))
         shape = cziimg.size
         if shape == (0,0): print(f"This file {os.path.join(path,file)} has shape (0,0).\nThe file might be a main file of a group of split files. Cannot read!\n"); continue
-
-        print(file,shape)
+        axes = cziimg.dims
+        print(file,shape,axes)
         scaling = cziimg.meta.find(".//Scaling")
         scalefactor = {}
         if scaling is not None:
@@ -204,7 +210,7 @@ def aics_cziwr(path:str = '', filelist:List[str] = [], prefix_splitter:str|None 
                 # print(axis, val, unit) # axes: 'X' 'Y' 'Z'
                 print(axis, val)
         img_array, _ = cziimg.read_image()
-        axes = cziimg.dims
+        
         file_pref = file.split(prefix_splitter)[0]
         tiffw(path, img_array, axes, shape, file_pref, scalefactor)
 
