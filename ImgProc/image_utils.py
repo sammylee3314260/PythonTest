@@ -22,23 +22,28 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
                     shape:Tuple[int,...] = (1, 1, 4, 1, 16, 1024, 1024, 1),# = None,
                     iter_axes:Dict[str,...] = {'S','T','C'},
                     pres_axes:Dict[str,...] = {'X','Y'},
-                    stack_index: str = 'Z',
                     file_pref:str = "img_") ->(
                     Generator[tuple[tuple[int|None,...],int|None,str,str],None,None]):
     axes_map = {ax:i for i,ax in enumerate(axes)}
+    iter_axes = set(iter_axes)
+    pres_axes = set(pres_axes)
+    print("before set manipulation: ",iter_axes, pres_axes)
     # check axes for filename
     is_multi_scene, is_multi_time, is_multi_channel, is_Zstack = False,False,False, False
     if 'S' in axes_map and shape[axes_map['S']] > 1: is_multi_scene = True
     if 'T' in axes_map and shape[axes_map['T']] > 1: is_multi_time = True
     if 'C' in axes_map and shape[axes_map['C']] > 1: is_multi_channel = True
     if 'Z' in axes_map and shape[axes_map['Z']] > 1: is_Zstack = True
+    axes_str = 'YX'
     if is_Zstack:
         pres_axes.add('Z')
+        axes_str = 'Z'+axes_str
     elif is_multi_time:
         iter_axes.remove('T')
         pres_axes.add('T')
-    print(iter_axes, pres_axes)
-    
+        axes_str = 'T'+axes_str
+    print("after set manipulation: ", iter_axes, pres_axes)
+
     # check if the to-be-iterated axes exist,
     # if so add to iter_axes
     loop_axes = []
@@ -49,7 +54,7 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
             loop_axes.append(ax)
             loop_range.append(range(shape[axes_map[ax]]))
     Z_ind = None
-    if 'Z' in axes_map and 'Z' in pres_axes: # check if this img is 3D, if so return new index of Z
+    if is_Zstack: # 'Z' in axes_map and 'Z' in pres_axes: # check if this img is 3D, if so return new index of Z
         cnt = 0
         for ax in axes_map:
             if ax == 'Z': Z_ind = cnt; break
@@ -71,13 +76,14 @@ def iter_multi_axes(axes:str = 'BVCTZYX0',# = "",
                         + ('_T' + str(slicer[axes_map.get('T')]) if is_multi_time and 'T' in iter_axes else '')
                         + ('_C' + str(slicer[axes_map.get('C')]) if is_multi_channel else '')
                         )
-        yield tuple(slicer), Z_ind, out_filename, out_file_max
+        yield tuple(slicer), Z_ind, out_filename, out_file_max, axes_str
 
 def tiffw(path, img_array, axes, shape, file_pref,scalefactor):
     if file_pref[-1]!='_': file_pref = file_pref+'_' # this might have to be fine tuned
-    for ind, Z_ind, out_filename, out_file_max in iter_multi_axes(axes,shape,file_pref=file_pref):
+    for ind, Z_ind, out_filename, out_file_max, axes_str in iter_multi_axes(axes,shape,file_pref=file_pref):
         print(out_filename)
         img = img_array[ind]
+        print(img.shape)
         # check scale factor
         '''
         resolution manipulation:
@@ -94,7 +100,7 @@ def tiffw(path, img_array, axes, shape, file_pref,scalefactor):
                         metadata={
                             'spacing': scalefactor['Z'] * int(1e6),
                             'unit': 'micron',
-                            'axes': 'ZYX'})
+                            'axes': axes_str})
         # max projection
         if (Z_ind is not None) and (img.ndim >= 3):
             maxproj = np.max(img, axis = Z_ind)
