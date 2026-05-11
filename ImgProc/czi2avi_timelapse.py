@@ -12,7 +12,7 @@ CZI to AVI Batch Converter
 
 使用方式：
   1. 修改下方 INPUT_DIR 為你的 CZI 資料夾路徑
-  2. 修改下方 OUTPUT_DIR 為輸出資料夾（會自動建立）l
+  2. 修改下方 OUTPUT_DIR 為輸出資料夾(會自動建立)
   3. 執行:python czi_to_avi.py
 """
 
@@ -27,8 +27,8 @@ from aicspylibczi import CziFile
 # ─────────────────────────────────────────────
 DEBUG = False
 # ─────────────────────────────────────────────
-INPUT_DIR  = r"/mnt/f/Osmolarity/2026-02-18/2.recovery/2026-02-19/"   # CZI file folder
-OUTPUT_DIR = r"/mnt/SammyRis/Sammy/Osmolarity_analysis/260218/mp4_output/2.recovery/"  # Output folder for mp4
+INPUT_DIR  = r"/mnt/f/Osmolarity/2026-05-01/1.exposure/2026-05-02"   # CZI file folder
+OUTPUT_DIR = r"/mnt/SammyRis/Sammy/Osmolarity_analysis/260501/mp4/1.exposure1"  # Output folder for mp4
 # ─────────────────────────────────────────────l
 
 # FPS for mp4 file (play rate)
@@ -89,7 +89,7 @@ def get_time_stamps_sec(czi: CziFile):
 
 
 def sec_to_mmss(seconds: float) -> str:
-    """將秒數轉為 HH:MM 格式"""
+    """Format time in second?/Minute to HH:MM format"""
     total_sec = int(round(seconds))
     mm = total_sec // 60
     ss = total_sec % 60
@@ -250,3 +250,46 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+''' Part of metadata pixel scale: ".//Scaling/Items/Distance[@Id='X']/Value",
+		<Scaling>\n
+			<Items>\n    
+				<Distance Id="X">\n     
+					<Value>6.45E-07</Value>\n     
+					<DefaultUnitFormat>µm</DefaultUnitFormat>\n    
+				</Distance>\n    
+				<Distance Id="Y">\n     
+					<Value>6.45E-07</Value>\n     
+					<DefaultUnitFormat>µm</DefaultUnitFormat>\n    
+				</Distance>\n    
+				<Distance Id="Z">\n     
+					<Value>9.9999999999999991E-06</Value>\n     
+					<DefaultUnitFormat>µm</DefaultUnitFormat>\n    
+				</Distance>\n   
+			</Items>\n  
+		</Scaling>\n 
+'''
+
+''' Part of metadata time interval: ".//Information/Image/T/Positions/Interval/Increment",
+        <Information>\n  
+			<Image>\n
+					<T>\n      
+						<StartTime>2026-05-01T18:32:00.8048205Z</StartTime>\n      
+						<Positions>\n       
+							<Interval>\n        
+								<Start>0</Start>\n        
+								<Increment>902.8646409</Increment>\n       
+							</Interval>\n      
+						</Positions>\n     
+					</T>\n     
+					<Z>\n      
+						<StartPosition>0</StartPosition>\n      
+						<Positions>\n       
+							<Interval>\n        
+								<Start>-10</Start>\n        
+								<Increment>10</Increment>\n       
+							</Interval>\n      
+						</Positions>\n     
+					</Z>\n     
+		</Information>\n  
+'''
