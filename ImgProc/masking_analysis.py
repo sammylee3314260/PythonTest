@@ -5,8 +5,9 @@ The goal is to use Chan-Vase algorithm to generate image mask
 using brightness of area.
 '''
 # initial imports
-import tkinter as tk
-from tkinter import filedialog
+if is_gui():
+    import tkinter as tk
+    from tkinter import filedialog
 import os
 import readline
 # Find all data (s* folders)
@@ -44,6 +45,7 @@ def read_path():
             print("GUI is not available. Falling back to command line input.")
             pass
     path = input("Please enter the path to the parent folder: ")
+    
     print(f'Input folder: {path}')
     return path
 
@@ -167,7 +169,6 @@ if __name__ == "__main__":
         v_smoothed = [data['v_smoothed'][i][0] for i in range(frames)]
         speed = np.hypot(u_smoothed,v_smoothed) # print(f"shape of speed = {speed.shape}")
         print(f"shape of u_smoothed = {u_smoothed[0].shape}")
-
 
         # Data processing: 2. Tiff files analysis, mask generation.
         tif_files = sorted([d for d in folderpath.glob('z*/*.tif') if d.is_file()])
