@@ -4,12 +4,19 @@ This is a test transfer from Akash's matlab code
 The goal is to use Chan-Vase algorithm to generate image mask
 using brightness of area.
 '''
+isdebug = False
+istestmask = True
+
 # initial imports
+import os
+# Determine GUI for tkinter
+def is_gui():
+    if 'DISPLAY' in os.environ.keys():return os.environ['DISPLAY'] is not None
+    else: return False
 if is_gui():
     import tkinter as tk
     from tkinter import filedialog
-import os
-import readline
+# import readline
 # Find all data (s* folders)
 from pathlib import Path
 # Imports for Data processing: 1
@@ -24,12 +31,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 # Imports for Data Processing: 5
 import pandas as pd
-
-
-
-# Determine GUI for tkinter
-def is_gui():
-    return os.environ['DISPLAY'] is not None
 
 # tkinter or CLI readline
 def read_path():
@@ -48,33 +49,6 @@ def read_path():
     
     print(f'Input folder: {path}')
     return path
-
-
-def load_pre_process(path):
-    img = skimage.io.imread(str(path))
-    # img = io.imread(str(path)).astype('float32') / 65535.0
-    img = filters.unsharp_mask(img)
-    img = exposure.equalize_adapthist(img)
-    return find_edge(img)
-
-def run_chan_vese(img, is_tqdm = True):
-    thres = filters.threshold_otsu(img)
-    init = img > thres
-    seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,extended_output=True, lambda1=0.97, lambda2=1, init_level_set=init)
-    # seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,tol=1e-3,extended_output=True)
-    # Remember if end = "", stdout buffer won't flush automatically!!
-    # so no printing before tqdm
-    if is_tqdm: tqdm.write(f" {len(eng)}",end="")
-    else:       print(f" {len(eng)}",end="")
-    return seg
-
-def get_largest_region(mask_2d):
-    labelled = measure.label(mask_2d)
-    props = measure.regionprops(labelled)
-    if not props:# If all mask is false
-        return np.zeros_like(mask_2d)
-    largest = max(props, key = lambda r: r.area)
-    return ndimage.binary_fill_holes(labelled == largest.label)
 
 def sobel_gradient(img):
     img = np.asarray(img, dtype=np.float64)
@@ -96,12 +70,38 @@ def get_gaussian_gradient(img):
         grads.append(g)
     return np.max(np.stack(grads, axis=0), axis=0)
 
+def load_pre_process(path):
+    img = skimage.io.imread(str(path))
+    # img = io.imread(str(path)).astype('float32') / 65535.0
+    img = filters.unsharp_mask(img)
+    img = exposure.equalize_adapthist(img)
+    if istestmask: img = get_gaussian_gradient(img)
+    else: img = sobel_gradient(img)
+    return img
+
+def run_chan_vese(img, is_tqdm = True):
+    thres = filters.threshold_otsu(img)
+    init = img > thres
+    seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,extended_output=True, lambda1=0.97, lambda2=1, init_level_set=init)
+    # seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,tol=1e-3,extended_output=True)
+    # Remember if end = "", stdout buffer won't flush automatically!!
+    # so no printing before tqdm
+    if is_tqdm: tqdm.write(f" {len(eng)}",end="")
+    else:       print(f" {len(eng)}",end="")
+    return seg
+
+def get_largest_region(mask_2d):
+    labelled = measure.label(mask_2d)
+    props = measure.regionprops(labelled)
+    if not props:# If all mask is false
+        return np.zeros_like(mask_2d)
+    largest = max(props, key = lambda r: r.area)
+    return ndimage.binary_fill_holes(labelled == largest.label)
+
 
 
 if __name__ == "__main__":
     # File input
-    isdebug = True
-    istestmask = True
 
     if isdebug:
         parent_folder = '~/test_C01'
@@ -112,6 +112,7 @@ if __name__ == "__main__":
     print(type(parent_folder))
     if type(parent_folder) != str or not os.path.isdir(parent_folder):
         print("Invalid folder path. Please check and try again.")
+        exit()
     '''
     design a argparse here? for further useage?
     '''
@@ -124,7 +125,9 @@ if __name__ == "__main__":
     if len(s_dirs) == 0: s_dirs = sorted([d for d in p.glob('s*') if d.is_dir()])
 
     # get CPU core numbers for possible parallel processing
-    get_cpu = os.environ.get('SLURM_CPUS_PER_TASK')
+    get_cpu = os.environ.get('SLURM_CPUS_PER_TASK') or \
+              os.environ.get('SLURM_CPUS_ON_NODE') or \
+              os.environ.get('SLURM_JOB_CPUS_PER_NODE')
     if get_cpu is None:
         iscluster =  False
         workers = os.cpu_count()
