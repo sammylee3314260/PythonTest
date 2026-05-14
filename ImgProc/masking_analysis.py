@@ -79,6 +79,7 @@ def load_pre_process(path):
     else: img = sobel_gradient(img)
     return img
 
+
 def run_chan_vese(img, is_tqdm = True):
     thres = filters.threshold_otsu(img)
     init = img > thres
@@ -97,8 +98,6 @@ def get_largest_region(mask_2d):
         return np.zeros_like(mask_2d)
     largest = max(props, key = lambda r: r.area)
     return ndimage.binary_fill_holes(labelled == largest.label)
-
-
 
 if __name__ == "__main__":
     # File input
@@ -183,12 +182,7 @@ if __name__ == "__main__":
         if not iscluster: 
             # if not on cluster just use single processor not use parallel,
             # because too much context switching. TOO SLOW
-            images = np.stack([skimage.io.imread(str(f)) for f in tif_files])
-            images = filters.unsharp_mask(images)
-            images = [exposure.equalize_adapthist(img) for img in images]
-            if istestmask:
-                grads = [get_gaussian_gradient(img) for img in images]
-            else: images = [sobel_gradient(img) for img in images]
+            images = np.stack([load_pre_process(f) for f in tif_files])
             # breakpoint() # check the pre-processed images in cli mode
             # sobel_gradient is the find_Edge from Akash's matlab code, without the manual border manipulation.
             print(f"shape of images = {images[0].shape}")
