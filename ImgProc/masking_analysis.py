@@ -8,6 +8,7 @@ isdebug = False
 istestmask = True
 
 # initial imports
+import sys
 import os
 # Determine GUI for tkinter
 def is_gui():
@@ -34,6 +35,9 @@ import pandas as pd
 
 # tkinter or CLI readline
 def read_path():
+    # for sbatch or non-interactive mode
+    if len(sys.argv) > 1: return sys.argv[1] 
+    # for interactive mode
     if is_gui():
         try:
             root = tk.Tk()
