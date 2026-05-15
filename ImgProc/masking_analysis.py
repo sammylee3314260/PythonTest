@@ -87,7 +87,9 @@ def load_pre_process(path):
 def run_chan_vese(img, is_tqdm = True):
     thres = filters.threshold_otsu(img)
     init = img > thres
-    seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,extended_output=True, lambda1=0.97, lambda2=1, init_level_set=init)
+    # Because defaule tol = 0.001. /
+    # if you dont want tol I think I should set it to 0.
+    seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100, tol = 0, extended_output=True, lambda1=0.97, lambda2=1, init_level_set=init)
     # seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,tol=1e-3,extended_output=True)
     # Remember if end = "", stdout buffer won't flush automatically!!
     # so no printing before tqdm
