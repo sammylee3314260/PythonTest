@@ -27,9 +27,9 @@ from aicspylibczi import CziFile
 # ─────────────────────────────────────────────
 DEBUG = False
 # ─────────────────────────────────────────────
-INPUT_DIR  = r"/mnt/f/Osmolarity/2026-05-01/1.exposure/2026-05-02"   # CZI file folder
-OUTPUT_DIR = r"/mnt/SammyRis/Sammy/Osmolarity_analysis/260501/mp4/1.exposure1"  # Output folder for mp4
-# ─────────────────────────────────────────────l
+INPUT_DIR  = r"/mnt/f/Osmolarity/2026-05-08/1.exposure/2026-05-09/"   # CZI file folder
+OUTPUT_DIR = r"/mnt/SammyRis/Sammy/Osmolarity_analysis/260508/mp4/1.exposure1"  # Output folder for mp4
+# ─────────────────────────────────────────────
 
 # FPS for mp4 file (play rate)
 OUTPUT_FPS = 10
