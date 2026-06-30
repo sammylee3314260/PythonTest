@@ -12,8 +12,8 @@ DEBUG: Final[bool] = False
 INPUT_PATH: Final[str|None|List[str]] = None  # You can put file path here, or None for other input options
 FILE_TYPE: str|None = None          # 'npy' or 'tiff' or None (auto determine)
 PIXEL_SIZE: float|None = None
-TIME_STEP: float|None = None
-TIME_UNIT: str|None = None
+TIME_STEP: float|None = 15.0        # Time steps in min
+TIME_UNIT: str|None = "min"          # Time Unit
 MULTIPROCESS: Final[bool] = False
 WORKERS_LIMIT: Final[int] = 2
 SAVE_PIV_VIDEOS:Final[bool] = False # Whether to save piv results to mp4
@@ -215,22 +215,24 @@ def main():
     speed_dict = {}
     order_parameter_dict = {}
     for f in processed:
+        print(f"file:{f}")
         ### Read files into numpy array and get pixel size and time steps.
         img = None
         # One problem is That after the three metadata parameters are determined, they are fixed,
         # so every file in this looping should have the same metadata parameters
-        if PIXEL_SIZE is None or TIME_STEP is None or TIME_UNIT is None:
-            if FILE_TYPE == 'npy':
-                img = np.load(str(f))
+        if FILE_TYPE == 'npy':
+            img = np.load(str(f))
+            if PIXEL_SIZE is None or TIME_STEP is None or TIME_UNIT is None:
                 with open(str(f.parent / f"{f.stem}.json"),'r') as j:
                     meta = json.load(j)
                 if PIXEL_SIZE is None: PIXEL_SIZE = meta["pixel_size_um"]
                 if TIME_STEP is None: TIME_STEP = meta["time_step"]
                 if TIME_UNIT is None: TIME_UNIT = meta["time_unit"]
                 # z_picked = meta["z_plane"]
-            elif FILE_TYPE == 'tiff':
-                tiff = tifffile.TiffFile(str(f))
-                img = tiff.asarray()
+        elif FILE_TYPE == 'tiff':
+            tiff = tifffile.TiffFile(str(f))
+            img = tiff.asarray()
+            if PIXEL_SIZE is None or TIME_STEP is None or TIME_UNIT is None:
                 meta = tiff.imagej_metadata
                 if PIXEL_SIZE is None: PIXEL_SIZE = meta["physicalsizex"]
                 if TIME_STEP is None: TIME_STEP = meta["timestep"]
