@@ -64,7 +64,8 @@ from . import utils
 def run_simple_multipass(frame_pairs):
     global TIME_STEP, DEBUG
     piv_parameter = piv_parameter_init(TIME_STEP,DEBUG)
-    return windef.simple_multipass(frame_pairs[0], frame_pairs[1], settings=piv_parameter)
+    try: return windef.simple_multipass(frame_pairs[0], frame_pairs[1], settings=piv_parameter)
+    except ValueError as e: printf(f"ValueError {e}"); return None
 
 def save_piv_videos_cv2(img, x,y,u,v, output_path,step=1, scale=1.0,thickness=1, color=(0,255,0)):
     # This is a placeholder function to save PIV result as video using cv2. You can implement it based on your needs.
@@ -266,6 +267,9 @@ def main():
                 ))
             del image_pairs
             gc.collect() # force garbage collection after multiprocessing to free memory
+        if any(r is None for r in results):
+            print('There are None (should be error) in the PIV process, continue')
+            continue
         x_result = np.stack([r[0] for r in results])
         y_result = np.stack([r[1] for r in results])
         u_result = np.stack([r[2] for r in results])
