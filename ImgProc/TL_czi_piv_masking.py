@@ -65,7 +65,7 @@ def run_simple_multipass(frame_pairs):
     global TIME_STEP, DEBUG
     piv_parameter = piv_parameter_init(TIME_STEP,DEBUG)
     try: return windef.simple_multipass(frame_pairs[0], frame_pairs[1], settings=piv_parameter)
-    except ValueError as e: printf(f"ValueError {e}"); return None
+    except ValueError as e: print(f"ValueError {e}"); return None
 
 def save_piv_videos_cv2(img, x,y,u,v, output_path,step=1, scale=1.0,thickness=1, color=(0,255,0)):
     # This is a placeholder function to save PIV result as video using cv2. You can implement it based on your needs.
@@ -164,7 +164,10 @@ def main():
     # Check whether there are tiff files or npy/json files. This is an implementation so that this script can process tiff or npy/json files
     # I want to change files from str to poxis object?
     files_pathlib = [Path(f) for f in files]
-    print(f"files:{files}")
+    
+    print(f"files:{files_pathlib[0].parent}")
+    for f in files_pathlib: print(f.name)
+
     if FILE_TYPE is None:
         extensions = [f.suffix for f in files_pathlib]
         if '.npy' in extensions: FILE_TYPE = 'npy'
@@ -191,9 +194,10 @@ def main():
     else: print(f"File type {FILE_TYPE} not defined? exit"); sys.exit()
 
     global PIXEL_SIZE, TIME_STEP, TIME_UNIT, OUTPUT_FOLDER
-    OUTPUT_FOLDER = path / 'analysis_output'
+    if OUTPUT_FOLDER is None: OUTPUT_FOLDER = path / 'analysis_output'
+    else: OUTPUT_FOLDER = Path(OUTPUT_FOLDER)
     if OUTPUT_FOLDER.exists():
-        if not DEBUG: print(f"output folder {OUTPUT_FOLDER} exists, exit?"); sys.exit()
+        if not DEBUG: print(f"output folder {OUTPUT_FOLDER} exists, exit?") # ; sys.exit() # I will turn this off first bc it is a bit annoying.
     else: OUTPUT_FOLDER.mkdir() # No need to set parent bc 'path' must exist.
     
     # get cpu for parallel processing
@@ -336,11 +340,11 @@ def main():
     order_df.index.name = 'Frame_index'
 
     targets = ['pre', 'exp', 'recov']
-    output_pref = path.stem if any(t in path.stem for t in targets)\
-        else path.parent.stem if any(t in path.parent.stem for t in targets)\
+    output_pref = OUTPUT_FOLDER.stem if any(t in OUTPUT_FOLDER.stem for t in targets)\
+        else OUTPUT_FOLDER.parent.stem if any(t in OUTPUT_FOLDER.parent.stem for t in targets)\
         else ''
-    speed_df.to_csv(path / (str(output_pref) + 'average_speed.csv'))
-    order_df.to_csv(path / (str(output_pref) + 'order_parameter.csv'))
+    speed_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + 'average_speed.csv'))
+    order_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + 'order_parameter.csv'))
 
 if __name__ == "__main__":
     main()
