@@ -3,31 +3,39 @@
 # 1. Read time-lapse czi files, should be 3 layer z stack with time-lapse of difference time duration.
 # 2. Pick the best focal plane.
 # 3. Output to (can choose): (1) tiff. (2) npy (image data) + json (metadata). (3) mp4.
+### Something to be aware of:
+# 1. Two path (Input path, output path) needed, or will output besides the input path
+# 2. All analysis shares the same time_step and pixel_to_um value. (to reduce times to reach metadata)
+
 
 from typing import Final
 ### Parameters
 # These are constant parameters for you to set as you need before run.
 # The Final[] thing is just for type hinting, so that I will not accidentally change them during the code is running.
-DEBUG: Final[bool] = True # If true, the path will take debug path (testing env)
+DEBUG: Final[bool] = False # If true, the path will take debug path (testing env)
 IMG_DISPLAY: Final[bool] = False # If true, import mayplotlib and show all three z images to pick
 # Input folder path input
-INPUT_FOLDER_PATH: Final[str|None] = "/mnt/f/Osmolarity/2026-06-10/2.recovery1" # If not None, use this path as the input folder path, otherwise ask user to select a folder. Only used when DEBUG is False.
+INPUT_FOLDER_PATH: Final[str|None] = "/mnt/g/2026-08-12/0.pre/" # None # "/mnt/d/Osmolarity/2026-08-06/" # If not None, use this path as the input folder path, otherwise ask user to select a folder. Only used when DEBUG is False.
 # Output folders path input
-OUTPUT_FOLDER: str|None = "/mnt/d/Osmolarity/260610/2.recovery1/"            # Will be changed if None
+OUTPUT_FOLDER: str|None = "/mnt/d/Osmolarity/260812/mp4_resize/0.pre/"            # Will be changed if None
+# These three will always be None
 OUTPUT_TIFF: str|None = None              # output folder of tiff files, Will be changed if None
 OUTPUT_NPY: str|None = None               # output folder of npy/json files, Will be changed if None
 OUTPUT_MP4: str|None = None               # output folder of mp4 files, Will be changed if None
+OUTPUT_MP4_RESIZE: str|None = None
 # Metadata parameters (for movie overlay mostly)
 PIXEL_SIZE: float|None = None
 TIME_UNIT: Final[str] = "min"       # I guess we should always use min, because PIV analysis use min??? dk
 PLOT_TIME_UNIT: Final[str] = "min"  # You can change this one, Time unit for plotting.
 TIME_STEP: float|None = None
 # Save Parameters
-SAVE_TIFF: Final[bool] = True      # Whether you want tifffile
-SAVE_NPY: Final[bool] = True       # Whether you want npy/json
-SAVE_MP4: Final[bool] = True       # Whether you want mp4
+SAVE_TIFF: Final[bool] = False      # Whether you want tifffile
+SAVE_NPY: Final[bool] = False       # Whether you want npy/json
+SAVE_MP4: Final[bool] = False       # Whether you want mp4
+SAVE_MP4_RESIZE: Final[bool] = True
 ### MP4 parameters
 import cv2
+DESIRED_HEIGHT = 540
 # FPS for mp4 file (play rate)
 OUTPUT_FPS = 10
 # Scale bar target length in µm
@@ -41,21 +49,20 @@ FONT_THICK = 2
 BG_COLOR   = (0, 0, 0)         # Black Bg frame
 ### End of parameters
 
-import os
 import sys
-import glob
 from pathlib import Path
-import re
 from aicspylibczi import CziFile
 import numpy as np
 if IMG_DISPLAY: import matplotlib.pyplot as plt
+if SAVE_TIFF  : import tifffile
+if SAVE_NPY   : import json
 
+if __name__ == "__main__" and __package__ is None:
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    __package__ = 'ImgProc'
+from . import utils
 
-if SAVE_TIFF:
-    import tifffile
-if SAVE_NPY:
-    import json
-
+''' # Get Filepath old code, try switch to utils
 def get_filepath(try_gui:bool = True):
     if sys.argv[1:]: return sys.argv[1]
     if INPUT_FOLDER_PATH: return INPUT_FOLDER_PATH
@@ -85,11 +92,15 @@ def get_filepath(try_gui:bool = True):
     readline.set_completer(path_completer)
     parent_folder = input("Please enter the path to the parent folder, you can use tab:\n")
     return parent_folder
+'''
 
+''' # Natural_sort_key old code try switch to utils
 def natural_sort_key(s):
     """sort filename (e.g. _2_ < _10_)"""
     return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
+'''
 
+''' # Normalize_frame old code try switch to utils
 def normalize_frame(frame: np.ndarray) -> np.ndarray:
     # if frame.dtype == np.uint8: return frame
     f_min, f_max = np.percentile(frame, (1,99))
@@ -98,10 +109,10 @@ def normalize_frame(frame: np.ndarray) -> np.ndarray:
         return np.zeros_like(frame, dtype=np.uint8)
     norm = (frame.astype(np.float32) - f_min) / (f_max - f_min) * 255
     return norm.astype(np.uint8)
+'''
 
 def best_focus_z(czi, t, z_planes):
-    '''
-    Akash's matlab code for best focal plane selection:
+    ''' Akash's matlab code for best focal plane selection:
 
     % Method 1: Variance of Laplacian (edge strength)
     laplacianKernel = [0 1 0; 1 -4 1; 0 1 0];
@@ -125,7 +136,7 @@ def best_focus_z(czi, t, z_planes):
     scores_gaus = []
     for z in range(z_planes):
         frame, _ = czi.read_image(T=t, Z=z, C=0)
-        frame = normalize_frame(np.squeeze(frame))
+        frame = utils.normalize_frame(np.squeeze(frame))
         # frame = np.squeeze(frame)
         frame_gaus = cv2.GaussianBlur(frame, (3,3), 0)
         # Laplacian
@@ -183,9 +194,12 @@ def get_pixel_size_um_czi(czi: CziFile):
     return None
 
 def get_time_stamps_mins_czi(czi: CziFile, time_unit="min"):
+    """
+    We want to get time-steps (in whatever time units) from czi file metadata.
+    """
     paths = [
-        ".//Experiment/ExperimentBlocks/AcquisitionBlock/SubDimensionSetups/TimeSeriesSetup/Duration/TimeSpan/Value",
-    ]
+        ".//Experiment/ExperimentBlocks/AcquisitionBlock/SubDimensionSetups/TimeSeriesSetup/Interval/TimeSpan/Value",
+    ] # This should get time_steps in sec
     try:
         meta = czi.meta_root
         for path in paths:
@@ -281,38 +295,48 @@ def draw_overlay(frame_bgr: np.ndarray,
     return img
 
 def main():
-    if not (DEBUG or SAVE_NPY or SAVE_TIFF or SAVE_MP4):
+    if not (DEBUG or SAVE_NPY or SAVE_TIFF or SAVE_MP4 or SAVE_MP4_RESIZE):
         print("Save to neither tiff, npy, nor mp4. No need to run the code?")
         sys.exit()
 
     # Input folder paths
     parent_folder = None
     if DEBUG:   parent_folder = INPUT_FOLDER_PATH # r"~/test_C01"
-    else:       parent_folder = get_filepath()
+    else:       parent_folder = utils.get_filepath(sys_argv=sys.argv,given_path=INPUT_FOLDER_PATH) # parent_folder = get_filepath()
     print(f"parent_folder: {parent_folder}")
-    p = Path(parent_folder).expanduser()
-    if not p.exists(): print(f"The provided path does not exist: {p}"); sys.exit(1)
-    if not p.is_dir(): print(f"The provided path is not a directory: {p}"); sys.exit(1)
-    else:              print(f"Processing folder: {p}")
+    if type(parent_folder) != str or parent_folder == "": print(f"The provided path does not exist: {parent_folder}"); sys.exit(1)
+    path_parent_folder = Path(parent_folder).expanduser()
+    if not path_parent_folder.exists(): print(f"The provided path does not exist: {path_parent_folder}"); sys.exit(1)
+    if not path_parent_folder.is_dir(): print(f"The provided path is not a directory: {path_parent_folder}"); sys.exit(1)
+    else:                               print(f"Processing folder: {path_parent_folder}")
     
     # Find Czi Files
-    # czi_files = sorted([f for f in p.glob('*.czi') if f.is_file()])
-    czi_files = sorted(glob.glob(os.path.join(p, '*.czi')), key=lambda p: natural_sort_key(os.path.basename(p)))
-    print(czi_files)
+    # czi_files = sorted([f for f in path_parent_folder.glob('*.czi') if f.is_file()])
+    czi_files = sorted(path_parent_folder.rglob('*.czi'), key=lambda p: utils.natural_sort_key(p.name))
+    for f in czi_files:
+        print(utils.remove_date_folder(f.relative_to(path_parent_folder)))
+    
+
+    ''' # I think we dont need this part if I use rglob, bc already recursively search
     if len(czi_files) == 0:
         print("try deeper directories")
-        czi_files = sorted(glob.glob(os.path.join(p, '**', '*.czi')), key=lambda p: natural_sort_key(os.path.basename(p)))
+        czi_files = sorted(glob.glob(os.path.join(p, '**', '*.czi')), key=lambda p: utils.natural_sort_key(os.path.basename(p)))
         # czi_files = sorted([f for f in p.glob('**/*.czi') if f.is_file()])
+    '''
+
     if len(czi_files) <= 0:
         print("No Czi Files Found. Exit()")
         sys.exit()
     else:
-        print(f'Found {len(czi_files)} .czi files:')
+        print(f'Found {len(czi_files)} .czi files.')
 
     # If there are Czi Files.
-    global OUTPUT_FOLDER, OUTPUT_TIFF, OUTPUT_NPY, OUTPUT_MP4
-    if OUTPUT_FOLDER is None:OUTPUT_FOLDER = p / 'outputs'
+    global OUTPUT_FOLDER
+    if OUTPUT_FOLDER is None: OUTPUT_FOLDER = utils.get_filepath(sys_argv = sys.argv[1:])
+    if OUTPUT_FOLDER is None or OUTPUT_FOLDER == '':OUTPUT_FOLDER = path_parent_folder / 'outputs'
     else: OUTPUT_FOLDER = Path(OUTPUT_FOLDER)
+    print(f"OUTPUT_FOLDER: {OUTPUT_FOLDER}")
+
     '''
     if OUTPUT_FOLDER.exists():
         if not DEBUG:
@@ -322,39 +346,78 @@ def main():
         # I am thinking should I check whether every files are processed and if not, only process the unprocessed files?
         # But for now, I will just exit.
     '''
-    if SAVE_TIFF is not None and OUTPUT_TIFF is None: OUTPUT_TIFF = OUTPUT_FOLDER / 'tiff'
-    if SAVE_NPY is not None and OUTPUT_NPY is None: OUTPUT_NPY = OUTPUT_FOLDER / 'npy'
-    if SAVE_MP4 is not None and OUTPUT_MP4 is None: OUTPUT_MP4 = OUTPUT_FOLDER / 'mp4'
+    
+
+    # for f in czi_files:
+    #     print((OUTPUT_MP4/utils.remove_date_folder(f.relative_to(path_parent_folder))))
 
     # Loop through czis to pick best focus, normalize, and save
+    global OUTPUT_TIFF, OUTPUT_NPY, OUTPUT_MP4, OUTPUT_MP4_RESIZE
     global PIXEL_SIZE, TIME_STEP, TIME_UNIT
     for f in czi_files:
         print(f"Processing: {f}")
-        czi = CziFile(str(f))
-        dims = czi.get_dims_shape() # list of dictionary
-        shape_dict = dims[0] if dims else {}
-        frame = shape_dict.get('T', (0, 1))[1]   # time points
-        z_planes = shape_dict.get('Z', (0, 1))[1]   # z-planes
-        z_picked = best_focus_z(czi, frame-1, z_planes)
-        # if DEBUG: print(shape_dict)
-        img, _ = czi.read_image(Z=z_picked)
-        # if DEBUG: print(f"shape of img: {img.shape}")
-        squeezed_img = np.squeeze(img)
-        # if DEBUG: print(f"shape of squeezed_img: {squeezed_img.shape}")
-        norm_squeezed_img = np.stack([normalize_frame(frame) for frame in squeezed_img])
-        if PIXEL_SIZE is None:
-            PIXEL_SIZE = get_pixel_size_um_czi(czi)
-        # if DEBUG: print(f"pixel_size {PIXEL_SIZE}")
-        if TIME_STEP is None:
-            duration = get_time_stamps_mins_czi(czi) # in mins, if exist in metadata
-            TIME_STEP = 1 if duration is None else duration / (frame - 1) # in mins, if duration exist in metadata, otherwise assume 1 min per frame
-        # if DEBUG: print(f"time_step {TIME_STEP} unit {TIME_UNIT}")
+
+        # Determin whether this file has been processed (NOT YET FINISHED, HAVE LOGICAL BUG!)
         f_stem = Path(f).stem
-        if SAVE_TIFF:
+        do_processing = False
+        # Now everytime OUTPUT_TIFF, OUTPUT_NPY, OUTPUT_MP4 will be updated everytime
+        if SAVE_TIFF: OUTPUT_TIFF = (OUTPUT_FOLDER / 'tiff'/ utils.remove_date_folder(f.relative_to(path_parent_folder))).parent
+        if SAVE_NPY : OUTPUT_NPY  = (OUTPUT_FOLDER / 'npy' / utils.remove_date_folder(f.relative_to(path_parent_folder))).parent
+        if SAVE_MP4 : OUTPUT_MP4  = (OUTPUT_FOLDER / 'mp4' / utils.remove_date_folder(f.relative_to(path_parent_folder))).parent
+        if SAVE_MP4_RESIZE: OUTPUT_MP4_RESIZE  = (OUTPUT_FOLDER / 'mp4_resize' / utils.remove_date_folder(f.relative_to(path_parent_folder))).parent
+        norm_squeezed_img = None
+        if SAVE_MP4_RESIZE  and not (OUTPUT_MP4_RESIZE  / f"{f_stem}.mp4" ).exists(): do_processing = True
+        if SAVE_MP4  and not (OUTPUT_MP4_RESIZE  / f"{f_stem}.mp4" ).exists(): do_processing = True
+        if SAVE_TIFF and not (OUTPUT_TIFF / f"{f_stem}.tiff").exists(): do_processing = True
+        if SAVE_NPY:
+            if (OUTPUT_NPY / f"{f_stem}.npy" ).exists() and \
+               (OUTPUT_NPY / f"{f_stem}.json").exists():
+                do_processing = False
+                norm_squeezed_img = np.load(str(OUTPUT_NPY / f"{f_stem}.npy"))
+                if (PIXEL_SIZE is None) or (TIME_STEP is None) or (TIME_UNIT is None):
+                    meta = None
+                    try:
+                        with open(str(OUTPUT_NPY / f"{f_stem}.json"),'r') as j:
+                            meta = json.load(j)
+                    except e:
+                        print(f"Failed to open or load json file: {str(OUTPUT_NPY / f'{f_stem}.json')}. Error: {e}")
+                    if meta is not None:
+                        if PIXEL_SIZE is None: PIXEL_SIZE = meta["pixel_size_um"]
+                        if TIME_STEP is None: TIME_STEP = meta["time_step"]
+                        if TIME_UNIT is None: TIME_STEP = meta["time_unit"]
+            else: do_processing = True
+        
+        if do_processing:
+            czi = CziFile(str(f))
+            if all([i == 0 for i in czi.size]): print(f"All dimentions is 0."); continue
+            dims = czi.get_dims_shape() # list of dictionary
+            shape_dict = dims[0] if dims else {}
+            frame = shape_dict.get('T', (0, 1))[1]   # time points
+            z_planes = shape_dict.get('Z', (0, 1))[1]   # z-planes
+            z_picked = best_focus_z(czi, frame-1, z_planes)
+            # if DEBUG: print(shape_dict)
+            img, _ = czi.read_image(Z=z_picked)
+            # if DEBUG: 
+            print(f"shape of img: {img.shape}")
+            squeezed_img = np.squeeze(img)
+            if len(squeezed_img.shape) <= 3: print(f"Dimention {squeezed_img.shape} less than 3. next file"); continue
+            # if DEBUG: print(f"shape of squeezed_img: {squeezed_img.shape}")
+            norm_squeezed_img = np.stack([utils.normalize_frame(frame) for frame in squeezed_img])
+            if PIXEL_SIZE is None:
+                PIXEL_SIZE = get_pixel_size_um_czi(czi)
+            # if DEBUG: print(f"pixel_size {PIXEL_SIZE}")
+            if TIME_STEP is None:
+                TIME_STEP = get_time_stamps_mins_czi(czi) # in mins, if exist in metadata
+                if TIME_STEP is None: TIME_STEP = 1 # in mins, if duration exist in metadata, otherwise assume 1 min per frame
+                print(f"time_step {TIME_STEP}, unit {TIME_UNIT}")
+            # if DEBUG: print(f"time_step {TIME_STEP} unit {TIME_UNIT}")
+        
+        if SAVE_TIFF and not (OUTPUT_TIFF / (f_stem + '.tiff')).exists():
             # print(dims)
             if not OUTPUT_TIFF.exists(): OUTPUT_TIFF.mkdir(parents=True)
             if dims: axes_str = [c for c in czi.dims if c!='Z' and shape_dict[c][1]-shape_dict[c][0]>1]
             else: axes_str = [""]
+            
             save_np_tiff(path = str(OUTPUT_TIFF / (f_stem + '.tiff')),
                          img_np = norm_squeezed_img,
                          pixel_size_um = PIXEL_SIZE,
@@ -363,25 +426,26 @@ def main():
                          time_unit=TIME_UNIT,
                          z_picked = z_picked
                          )
-        if SAVE_NPY:
+        if SAVE_NPY  and not (OUTPUT_NPY  / (f_stem + '.npy' )).exists():
             if not OUTPUT_NPY.exists(): OUTPUT_NPY.mkdir(parents=True)
-            np.save(str(OUTPUT_NPY/(f_stem + '.npy')), norm_squeezed_img)
+            np.save(str(OUTPUT_NPY / (f_stem + '.npy')), norm_squeezed_img)
             metadata = {
                 "pixel_size_um":    PIXEL_SIZE,
                 "time_step":        TIME_STEP,
                 "time_unit":        TIME_UNIT,
                 "z_plane":          z_picked,
             }
-            with open(str(OUTPUT_NPY/(f_stem+'.json')),'w',encoding='utf-8') as f:
+            with open(str(OUTPUT_NPY / (f_stem+'.json')),'w',encoding='utf-8') as f:
                 json.dump(metadata, f, indent=4)
-        if SAVE_MP4:
+        if norm_squeezed_img is not None: norm_squeezed_img = (norm_squeezed_img / 255 * 220 + 35).astype(np.uint8)
+        if SAVE_MP4  and not (OUTPUT_MP4  / (f_stem + '.mp4' )).exists():
             if not OUTPUT_MP4.exists(): OUTPUT_MP4.mkdir(parents=True)
             # if DEBUG: print(str(OUTPUT_MP4/(f_stem + '.mp4')))
-            out = cv2.VideoWriter(str(OUTPUT_MP4/(f_stem + '.mp4')),
+            out = cv2.VideoWriter(str(OUTPUT_MP4 / (f_stem + '.mp4')),
                                   cv2.VideoWriter_fourcc(*'mp4v'),
                                   OUTPUT_FPS,
                                   (norm_squeezed_img.shape[2], norm_squeezed_img.shape[1])
-                                  )
+                                 )
             time_stamp = 0
             for slice in norm_squeezed_img:
                 frame_bgr  = cv2.cvtColor(slice, cv2.COLOR_GRAY2BGR)
@@ -394,7 +458,28 @@ def main():
                 out.write(frame_out)
                 time_stamp = (time_stamp + TIME_STEP) if TIME_STEP is not None else (time_stamp + 1)
             out.release()
-
-
+        if SAVE_MP4_RESIZE  and not (OUTPUT_MP4_RESIZE  / (f_stem + '.mp4' )).exists():
+            if not OUTPUT_MP4_RESIZE.exists(): OUTPUT_MP4_RESIZE.mkdir(parents=True)
+            # if DEBUG: print(str(OUTPUT_MP4/(f_stem + '.mp4')))
+            out = None
+            time_stamp = 0
+            scale_factor = DESIRED_HEIGHT / norm_squeezed_img.shape[1]
+            for slice in norm_squeezed_img:
+                frame_bgr  = cv2.cvtColor(slice, cv2.COLOR_GRAY2BGR)
+                # Timestamp minute to hhmm str
+                ts_str = min_to_hhmm(time_stamp)
+                frame_out = draw_overlay(frame_bgr, ts_str,
+                                         round(SCALEBAR_UM/PIXEL_SIZE) if PIXEL_SIZE is not None else 0,
+                                         SCALEBAR_UM)
+                frame_resize = cv2.resize(frame_out,dsize=None,fx=scale_factor,fy=scale_factor,interpolation=cv2.INTER_LINEAR)
+                if out is None:
+                    out = cv2.VideoWriter(str(OUTPUT_MP4_RESIZE / (f_stem + '.mp4')),
+                                          cv2.VideoWriter_fourcc(*'mp4v'),
+                                          OUTPUT_FPS,
+                                          (frame_resize.shape[1], frame_resize.shape[0])
+                                         )
+                out.write(frame_resize)
+                time_stamp = (time_stamp + TIME_STEP) if TIME_STEP is not None else (time_stamp + 1)
+            out.release()
 if __name__ == "__main__":
     main()

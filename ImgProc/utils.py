@@ -4,6 +4,8 @@ import glob
 import os
 import re
 import numpy as np
+from pathlib import Path
+from datetime import datetime
 
 def get_filepath(try_gui:bool = True, sys_argv = None, given_path = None):
     """If try_gui, will try to run Windows gui system.\n
@@ -47,8 +49,20 @@ def natural_sort_key(s):
 
 def normalize_frame(frame: np.ndarray) -> np.ndarray:
     if frame.dtype == np.uint8: return frame
+    # f_min, f_max = np.percentile(frame, (0.5,99.5))
     f_min, f_max = frame.min(), frame.max()
     if f_max == f_min:
         return np.zeros_like(frame, dtype=np.uint8)
     norm = (frame.astype(np.float32) - f_min) / (f_max - f_min) * 255
     return norm.astype(np.uint8)
+
+def remove_date_folder(path):
+    def is_date(name):
+        for fmt in ("%Y-%m-%d","%Y%m%d"):
+            try:
+                datetime.strptime(name,fmt)
+                return True
+            except ValueError: pass
+        return False
+    return Path(*[part for part in path.parts
+                  if not is_date(part)])
