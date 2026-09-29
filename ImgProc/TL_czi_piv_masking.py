@@ -16,7 +16,8 @@ TIME_STEP: float|None = 15.0        # Time steps in min
 TIME_UNIT: str|None = "min"          # Time Unit
 MULTIPROCESS: Final[bool] = False
 WORKERS_LIMIT: Final[int] = 2
-SAVE_PIV_VIDEOS:Final[bool] = False # Whether to save piv results to mp4
+SAVE_PIV_VIDEOS:Final[bool] = True # Whether to save piv results to mp4
+SAVE_MASK_TIFF:Final[bool] = True # Whether to save mask tiff file
 OUTPUT_FPS: Final[int] = 10
 OUTPUT_FOLDER: str|None = None
 TEST_GAUSSIAN:Final[bool] = True    # If true use gaussian window passes for variance masking, if false use sobel
@@ -129,8 +130,9 @@ def run_chan_vese(img, is_tqdm = True):
     # seg, _, eng = segmentation.chan_vese(img, mu=0.2, max_num_iter=100,tol=1e-3,extended_output=True)
     # Remember if end = "", stdout buffer won't flush automatically!!
     # so no printing before tqdm
-    if is_tqdm: tqdm.write(f" {len(eng)}",end="")
-    else:       print(f" {len(eng)}",end="")
+    if DEBUG:
+        if is_tqdm: tqdm.write(f" {len(eng)}",end="")
+        else:       print(f" {len(eng)}",end="")
     return seg
 
 def get_largest_region(mask_2d):
@@ -142,6 +144,7 @@ def get_largest_region(mask_2d):
     return ndimage.binary_fill_holes(labelled == largest.label)
 
 def main():
+    failed = []
     ### Step 1: As always, readin paths
     parent_folder = ""
     global FILE_TYPE
@@ -273,6 +276,7 @@ def main():
             gc.collect() # force garbage collection after multiprocessing to free memory
         if any(r is None for r in results):
             print('There are None (should be error) in the PIV process, continue')
+            failed.append(f)
             continue
         x_result = np.stack([r[0] for r in results])
         y_result = np.stack([r[1] for r in results])
@@ -304,7 +308,7 @@ def main():
             for i in tqdm(img_proc,  desc = 'Chan-Vese Processing'):
                 results.append(run_chan_vese(i))
                 # breakpoint() # check the results in cli mode exit()
-            print("") # 1: put a \n, 2: flush stdout cache
+            if DEBUG: print("") # 1: put a \n, 2: flush stdout cache
         else:
             with ProcessPoolExecutor(max_workers=min(workers,WORKERS_LIMIT)) as executor:
                 results = list(tqdm(
@@ -312,11 +316,21 @@ def main():
                     total=len(img_proc),
                     desc = 'Chan-Vese Processing'
                 ))
-            print("") # 1: put a \n, 2: flush cache
+            if DEBUG: print("") # 1: put a \n, 2: flush cache
 
         ### Post masking data analysis
         results = np.stack(results)
         results_new = np.stack([get_largest_region(mask) for mask in results])
+        # Save Chan-Vese-ed mask
+        result_uint8 = results_new.astype('uint8')*255
+        np.save(str(OUTPUT_FOLDER / f"{f.stem}_mask_result"),results_new)
+        # Save masks (ideally w/ jpeg or mp4 for validation) and analysis results
+        if SAVE_MASK_TIFF:
+            tifffile.imwrite(str(OUTPUT_FOLDER / f"{f.stem}_mask_result.tif"),
+                        result_uint8, imagej=True, dtype=result_uint8.dtype,
+                        software='ImageJ',
+                        metadata={'axes':'TYX'})
+        # exit()
         results_resize = np.stack([transform.resize(mask, speed[0].shape, order=0, preserve_range=True).astype(bool) for mask in results_new])
 
         average_speed = [np.nanmean(speed[i][results_resize[i]]) for i in range(frame-1)]
@@ -330,21 +344,34 @@ def main():
                                      /(speed[i][results_resize[i]] * np.hypot(*principle_dir[i])))
                                        for i in range(frame-1)]
         speed_dict[f.stem] = average_speed
+        if TIME_UNIT == "min": speed_dict_um[f.stem] = average_speed * PIXEL_SIZE * (60/TIME_STEP) # um/hr
+        else:
+            speed_dict_um[f.stem] = average_speed * PIXEL_SIZE # um/timestep
+            print(f"The data have been corrected to um, but time step and unit is: {TIME_STEP}, {TIME_UNIT}, please correct yourself!")
         order_parameter_dict[f.stem] = order_parameter
 
-        # Save masks (ideally w/ jpeg or mp4 for validation) and analysis results
-        # Data Processing: 5. Save the results in csv files for further analysis.
-    speed_df = pd.DataFrame(speed_dict)
-    order_df = pd.DataFrame(order_parameter_dict)
-    speed_df.index.name = 'Frame_index'
-    order_df.index.name = 'Frame_index'
+        
+    # Data Processing: 5. Save the results in csv files for further analysis.
+    speed_df    = pd.DataFrame(speed_dict)
+    print(f"The data is corrected with: PIXEL_SIZE {PIXEL_SIZE} um/px, TIME_STEP {TIME_STEP} UNIT {TIME_UNIT}.")
+    speed_um_df = pd.DataFrame(speed_dict_um)
+    order_df    = pd.DataFrame(order_parameter_dict)
+    speed_df.index.name    = 'Frame_index'
+    speed_um_df.index.name = 'Frame_index'
+    order_df.index.name    = 'Frame_index'
 
     targets = ['pre', 'exp', 'recov']
-    output_pref = OUTPUT_FOLDER.stem if any(t in OUTPUT_FOLDER.stem for t in targets)\
-        else OUTPUT_FOLDER.parent.stem if any(t in OUTPUT_FOLDER.parent.stem for t in targets)\
+    output_pref = OUTPUT_FOLDER.name if any(t in OUTPUT_FOLDER.name for t in targets)\
+        else OUTPUT_FOLDER.parent.name if any(t in par for par in [i.name for i in OUTPUT_FOLDER.parents] for t in targets)\
         else ''
-    speed_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + 'average_speed.csv'))
-    order_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + 'order_parameter.csv'))
+    speed_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_average_speed.csv'))
+    speed_um_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_average_speed_um.csv'))
+    order_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_order_parameter.csv'))
+    with pd.ExcelWriter(OUTPUT_FOLDER / (str(output_pref) + '_output.xlsx', engine = 'openpyxl') as writer:
+        speed_df.to_excel(writer,sheet_name="speed_px",index=False)
+        speed_um_df.to_excel(writer,sheet_name="speed_um",index=False)
+        order_df.to_excel(writer,sheet_name="order_parameter",index=False)
+    print(f"some failed files: {failed}")
 
 if __name__ == "__main__":
     main()
