@@ -10,3 +10,14 @@ dist/
 .idea/
 ImgProc/__pycache__/
 *.pyc
+.vscode/
+
+# My testing files or case-by-case codes or trash files
+ImgProc/Test.py
+exp_specific_code/
+test.txt
+install_napari_dep.sh
+quiver.png
+grep
+.python-version
+requirements.txt
