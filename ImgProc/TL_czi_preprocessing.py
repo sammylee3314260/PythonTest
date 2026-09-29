@@ -15,9 +15,9 @@ from typing import Final
 DEBUG: Final[bool] = False # If true, the path will take debug path (testing env)
 IMG_DISPLAY: Final[bool] = False # If true, import mayplotlib and show all three z images to pick
 # Input folder path input
-INPUT_FOLDER_PATH: Final[str|None] = "/mnt/g/2026-08-12/0.pre/" # None # "/mnt/d/Osmolarity/2026-08-06/" # If not None, use this path as the input folder path, otherwise ask user to select a folder. Only used when DEBUG is False.
+INPUT_FOLDER_PATH: Final[str|None] = None # "/mnt/d/Osmolarity/2026-08-06/" # If not None, use this path as the input folder path, otherwise ask user to select a folder. Only used when DEBUG is False.
 # Output folders path input
-OUTPUT_FOLDER: str|None = "/mnt/d/Osmolarity/260812/mp4_resize/0.pre/"            # Will be changed if None
+OUTPUT_FOLDER: str|None = None # "/mnt/d/Osmolarity/260812/mp4_resize/0.pre/"            # Will be changed if None
 # These three will always be None
 OUTPUT_TIFF: str|None = None              # output folder of tiff files, Will be changed if None
 OUTPUT_NPY: str|None = None               # output folder of npy/json files, Will be changed if None
@@ -30,7 +30,7 @@ PLOT_TIME_UNIT: Final[str] = "min"  # You can change this one, Time unit for plo
 TIME_STEP: float|None = None
 # Save Parameters
 SAVE_TIFF: Final[bool] = False      # Whether you want tifffile
-SAVE_NPY: Final[bool] = False       # Whether you want npy/json
+SAVE_NPY: Final[bool] = True       # Whether you want npy/json
 SAVE_MP4: Final[bool] = False       # Whether you want mp4
 SAVE_MP4_RESIZE: Final[bool] = True
 ### MP4 parameters
@@ -303,6 +303,8 @@ def main():
     parent_folder = None
     if DEBUG:   parent_folder = INPUT_FOLDER_PATH # r"~/test_C01"
     else:       parent_folder = utils.get_filepath(sys_argv=sys.argv,given_path=INPUT_FOLDER_PATH) # parent_folder = get_filepath()
+    # I want to change this bc this "sys.argv" might be dangerous?
+
     print(f"parent_folder: {parent_folder}")
     if type(parent_folder) != str or parent_folder == "": print(f"The provided path does not exist: {parent_folder}"); sys.exit(1)
     path_parent_folder = Path(parent_folder).expanduser()
@@ -330,7 +332,7 @@ def main():
     else:
         print(f'Found {len(czi_files)} .czi files.')
 
-    # If there are Czi Files.
+    # If there are Czi Files, determining output folders.
     global OUTPUT_FOLDER
     if OUTPUT_FOLDER is None: OUTPUT_FOLDER = utils.get_filepath(sys_argv = sys.argv[1:])
     if OUTPUT_FOLDER is None or OUTPUT_FOLDER == '':OUTPUT_FOLDER = path_parent_folder / 'outputs'
@@ -379,14 +381,14 @@ def main():
                     try:
                         with open(str(OUTPUT_NPY / f"{f_stem}.json"),'r') as j:
                             meta = json.load(j)
-                    except e:
+                    except Exception as e:
                         print(f"Failed to open or load json file: {str(OUTPUT_NPY / f'{f_stem}.json')}. Error: {e}")
                     if meta is not None:
                         if PIXEL_SIZE is None: PIXEL_SIZE = meta["pixel_size_um"]
                         if TIME_STEP is None: TIME_STEP = meta["time_step"]
                         if TIME_UNIT is None: TIME_STEP = meta["time_unit"]
             else: do_processing = True
-        
+            
         if do_processing:
             czi = CziFile(str(f))
             if all([i == 0 for i in czi.size]): print(f"All dimentions is 0."); continue
@@ -400,7 +402,7 @@ def main():
             # if DEBUG: 
             print(f"shape of img: {img.shape}")
             squeezed_img = np.squeeze(img)
-            if len(squeezed_img.shape) <= 3: print(f"Dimention {squeezed_img.shape} less than 3. next file"); continue
+            if len(squeezed_img.shape) < 3: print(f"Dimention {squeezed_img.shape} less than 3. next file"); continue
             # if DEBUG: print(f"shape of squeezed_img: {squeezed_img.shape}")
             norm_squeezed_img = np.stack([utils.normalize_frame(frame) for frame in squeezed_img])
             if PIXEL_SIZE is None:
