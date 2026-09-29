@@ -1,6 +1,6 @@
+# A launcher script for tiff2mp4, this is for wsl only
 import sys
 import os
-import re
 import subprocess
 
 TIFF2MP4_SCRIPT = "/home/sammylee/code/PythonTest/ImgProc/tiff2mp4.py"
