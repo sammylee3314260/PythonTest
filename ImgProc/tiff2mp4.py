@@ -104,6 +104,6 @@ def main():
                 out.write(resized_slice)
             out.release()
             print(f"File {f} Output @ {str(path_parent_folder / (f.stem + '.mp4'))}")
-
+    input("Press Enter to continue...")
 if __name__ == "__main__":
     main()
