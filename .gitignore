@@ -1,1 +1,12 @@
+# Virtual env
 .venv/
+
+# Pyinstaller dump
+build/
+dist/
+*.spec
+
+# IDE dump
+.idea/
+ImgProc/__pycache__/
+*.pyc
