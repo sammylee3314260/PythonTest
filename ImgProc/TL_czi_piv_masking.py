@@ -14,8 +14,8 @@ FILE_TYPE: str|None = None          # 'npy' or 'tiff' or None (auto determine)
 PIXEL_SIZE: float|None = None
 TIME_STEP: float|None = 15.0        # Time steps in min
 TIME_UNIT: str|None = "min"          # Time Unit
-MULTIPROCESS: Final[bool] = False
-WORKERS_LIMIT: Final[int] = 2
+MULTIPROCESS: Final[bool] = True
+WORKERS_LIMIT: Final[int] = 16
 SAVE_PIV_VIDEOS:Final[bool] = True # Whether to save piv results to mp4
 SAVE_MASK_TIFF:Final[bool] = True # Whether to save mask tiff file
 OUTPUT_FPS: Final[int] = 10
@@ -145,7 +145,7 @@ def get_largest_region(mask_2d):
 
 def main():
     failed = []
-    ### Step 1: As always, readin paths
+    ### Step 1: As always, read in paths
     parent_folder = ""
     global FILE_TYPE
     if DEBUG:
@@ -204,23 +204,28 @@ def main():
     else: OUTPUT_FOLDER.mkdir() # No need to set parent bc 'path' must exist.
     
     # get cpu for parallel processing
-    get_cpu = os.environ.get('SLURM_CPUS_PER_TASK') or \
-              os.environ.get('SLURM_CPUS_ON_NODE') or \
-              os.environ.get('SLURM_JOB_CPUS_PER_NODE')
-    if get_cpu is None:
-        iscluster =  False
-        workers = os.cpu_count()
-        print(f"Not on SLURM clusters, cpu cores = {workers}")
+    if not MULTIPROCESS:
+        print(f"Not MULTIPROCESS, single processing!!!")
     else:
-        # if on cluster, the cpu_count return value will be all CPU numbers on the cluster
-        # which is very large, while the available CPU for you is limited
-        iscluster = True
-        workers = int(get_cpu)
-        print(f"On SLURM clusters, cpu cores = {workers}")
+        get_cpu = os.environ.get('SLURM_CPUS_PER_TASK') or \
+                os.environ.get('SLURM_CPUS_ON_NODE') or \
+                os.environ.get('SLURM_JOB_CPUS_PER_NODE')
+        if get_cpu is None:
+            iscluster =  False
+            workers = os.cpu_count()
+            print(f"Not on SLURM clusters, cpu cores = {workers}")
+        else:
+            # if on cluster, the cpu_count return value will be all CPU numbers on the cluster
+            # which is very large, while the available CPU for you is limited
+            iscluster = True
+            workers = int(get_cpu)
+            print(f"On SLURM clusters, cpu cores = {workers}")
+        print(f"MULTIPROCESS, Final number of working CPU: {min(workers, WORKERS_LIMIT)}")
 
     ### Step 2: start processing individual files
     # f or processed is poxis object list
     speed_dict = {}
+    speed_dict_um = {}
     order_parameter_dict = {}
     for f in processed:
         print(f"file:{f}")
@@ -260,7 +265,7 @@ def main():
         norm_img = [utils.normalize_frame(f) for f in img]
         results = []
         if not MULTIPROCESS:
-            for t in tqdm(range(frame-1), desc=f"Processing {f.stem}"):
+            for t in tqdm(range(frame-1), desc=f"PIV Processing {f.stem}"):
                 results.append(
                     run_simple_multipass((norm_img[t], norm_img[t+1]))
                     )
@@ -298,7 +303,7 @@ def main():
 
         ### Run Chan-Vese
         img_proc = [image_pre_process(i) for i in norm_img[1:]] # No need to deal with first frame
-        if not iscluster: 
+        if not MULTIPROCESS: 
             # if not on cluster just use single processor not use parallel,
             # seems like it becomes very slow on my computer?
             if DEBUG: print(f"shape of images = {img_proc.shape}")
@@ -314,7 +319,7 @@ def main():
                 results = list(tqdm(
                     executor.map(run_chan_vese, img_proc),
                     total=len(img_proc),
-                    desc = 'Chan-Vese Processing'
+                    desc = 'Multiprocess Chan-Vese Processing'
                 ))
             if DEBUG: print("") # 1: put a \n, 2: flush cache
 
@@ -344,9 +349,9 @@ def main():
                                      /(speed[i][results_resize[i]] * np.hypot(*principle_dir[i])))
                                        for i in range(frame-1)]
         speed_dict[f.stem] = average_speed
-        if TIME_UNIT == "min": speed_dict_um[f.stem] = average_speed * PIXEL_SIZE * (60/TIME_STEP) # um/hr
+        if TIME_UNIT == "min": speed_dict_um[f.stem] = [i * PIXEL_SIZE * (60/TIME_STEP) for i in average_speed] # um/hr
         else:
-            speed_dict_um[f.stem] = average_speed * PIXEL_SIZE # um/timestep
+            speed_dict_um[f.stem] = [i * PIXEL_SIZE for i in average_speed] # um/timestep
             print(f"The data have been corrected to um, but time step and unit is: {TIME_STEP}, {TIME_UNIT}, please correct yourself!")
         order_parameter_dict[f.stem] = order_parameter
 
@@ -367,7 +372,7 @@ def main():
     speed_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_average_speed.csv'))
     speed_um_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_average_speed_um.csv'))
     order_df.to_csv(OUTPUT_FOLDER / (str(output_pref) + '_order_parameter.csv'))
-    with pd.ExcelWriter(OUTPUT_FOLDER / (str(output_pref) + '_output.xlsx', engine = 'openpyxl') as writer:
+    with pd.ExcelWriter(OUTPUT_FOLDER / (str(output_pref) + '_output.xlsx'), engine = 'openpyxl') as writer:
         speed_df.to_excel(writer,sheet_name="speed_px",index=False)
         speed_um_df.to_excel(writer,sheet_name="speed_um",index=False)
         order_df.to_excel(writer,sheet_name="order_parameter",index=False)
