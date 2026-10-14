@@ -1,5 +1,6 @@
 ### Maintain a utility functions library
 # import sys
+import warnings
 import glob
 import os
 import re
@@ -7,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 
-DEBUG = True
+DEBUG = False
 
 '''
 # old version of get_filepath, it will crash in Windows system, bc readline and subprocess cannot be imported on windows system
@@ -48,7 +49,7 @@ def get_filepath(try_gui:bool = True, sys_argv = None, given_path = None):
     parent_folder = input("Please enter the path to the parent folder, you can use tab:\n")
     return parent_folder
 '''
-def get_filepath(try_gui:bool = True, sys_argv = [], given_path = None):
+def get_filepath(try_gui:bool = True, sys_argv = [], given_path:str|None = None):
     """Proirity-wise:
        1. If path come with sys_argv, will return sys_argv[1], sys_argv should only put in: sys.argv.
        2. If given_path, will return given_path.
@@ -57,8 +58,10 @@ def get_filepath(try_gui:bool = True, sys_argv = [], given_path = None):
     """
     if sys_argv[1:]:
         if isinstance(sys_argv[1], str): return sys_argv[1]
-        else: print(f"sys.argv[1] {sys_argv[1]} is not string, keep going.")
-    if given_path: return given_path
+        else: warnings.warn(f"Warning: sys.argv[1] {sys_argv[1]} is not a string, keep going.")
+    if given_path:
+        if isinstance(given_path, str): return given_path
+        else: warnings.warn(f"Warning: given_path {given_path} is not None nor a string, keep going.")
 
     env = _detect_env()
     if DEBUG: print(f"env = {env}")
@@ -68,7 +71,7 @@ def get_filepath(try_gui:bool = True, sys_argv = [], given_path = None):
             if env == "wsl": return _gui_select_wsl()
             elif env in ("windows", "linux", "macos"): return _gui_select_tkinter()
         except Exception as e:
-            print(f"GUI selection failed {e}, try Cli")
+            warnings.warn(f"Warning: GUI selection in environment {env} failed {e}, try Cli.")
     return _cli_input(env)
 
 def _detect_env():
