@@ -165,6 +165,7 @@ def main():
             else: prefix_splitter = '.czi'
             file_pref = f.name.split(prefix_splitter)[0]
             tiffw(f.parent, img_array, axes, shape, file_pref, scalefactor)
+    input("Press Enter to close...")
 
 if __name__ == "__main__":
     main()
