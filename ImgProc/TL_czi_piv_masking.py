@@ -14,7 +14,7 @@ FILE_TYPE: str|None = None          # 'npy' or 'tiff' or None (auto determine)
 PIXEL_SIZE: float|None = None
 TIME_STEP: float|None = 15.0        # Time steps in min
 TIME_UNIT: str|None = "min"          # Time Unit
-MULTIPROCESS: Final[bool] = True
+MULTIPROCESS: Final[bool] = False if DEBUG else True
 WORKERS_LIMIT: Final[int] = 16
 SAVE_PIV_VIDEOS:Final[bool] = True # Whether to save piv results to mp4
 SAVE_MASK_TIFF:Final[bool] = True # Whether to save mask tiff file
@@ -41,7 +41,6 @@ def piv_parameter_init(time_step: float = TIME_STEP, is_debug: bool = DEBUG):
 
 from pathlib import Path
 import sys
-import glob
 import os
 import tifffile
 import json
@@ -144,6 +143,16 @@ def get_largest_region(mask_2d):
     return ndimage.binary_fill_holes(labelled == largest.label)
 
 def main():
+    print(f"============Default Parameters============")
+    print(f"DEBUG           = {DEBUG}")
+    print(f"INPUT_PATH      = {INPUT_PATH}")
+    print(f"MULTIPROCESS    = {MULTIPROCESS}")
+    print(f"WORKERS_LIMIT   = {WORKERS_LIMIT}")
+    print(f"SAVE_PIV_VIDEOS = {SAVE_PIV_VIDEOS}")
+    print(f"SAVE_MASK_TIFF  = {SAVE_MASK_TIFF}")
+    print(f"TEST_GAUSSIAN   = {TEST_GAUSSIAN}")
+    print(f"==========================================")
+    
     failed = []
     ### Step 1: As always, read in paths
     parent_folder = ""
@@ -154,47 +163,47 @@ def main():
         else: parent_folder = r"~/test_C01/outputs/npy"
     else:     parent_folder = utils.get_filepath(try_gui=False, sys_argv=sys.argv, given_path=INPUT_PATH)
     path = Path(parent_folder).expanduser()
-    if not path.exists(): print(f"The provided path does not exist: {path}"); sys.exit(1)
-    if not path.is_dir(): print(f"The provided path is not a directory: {path}"); sys.exit(1)
+    if not path.exists(): raise ValueError(f"The provided path does not exist: {path}")
+    if not path.is_dir(): raise ValueError(f"The provided path is not a directory: {path}")
     else:                 print(f"Processing folder: {path}")
 
-    # Notice 'files' is a str list not a pathlib POXIS object list!!!
-    files = [p for p in glob.glob(os.path.join(path, '*')) if Path(p).expanduser().is_file()]
-    if len(files) == 0: files = [p for p in glob.glob(os.path.join(path, '**', '*')) if Path(p).expanduser().is_file()]
+    # Notice 'files' is a pathlib POXIS object list!
+    files = [p for p in path.iterdir() if p.expanduser().is_file()]
+    if len(files) == 0: files = [p for p in path.rglob('*') if p.expanduser().is_file()]
     if len(files) == 0: print(f"Cannot find files in and under dir {INPUT_PATH}, exit."); sys.exit()
-    files = sorted(files, key=lambda p: utils.natural_sort_key(os.path.basename(p)))
+    files = sorted(files, key=lambda p: utils.natural_sort_key(p.name))
     
     # Check whether there are tiff files or npy/json files. This is an implementation so that this script can process tiff or npy/json files
     # I want to change files from str to poxis object?
-    files_pathlib = [Path(f) for f in files]
+    # files_pathlib = [Path(f) for f in files]
     
-    print(f"files:{files_pathlib[0].parent}")
-    for f in files_pathlib: print(f.name)
+    print(f"files:{files[0].parent}")
+    for f in files: print(f.name)
 
     if FILE_TYPE is None:
-        extensions = [f.suffix for f in files_pathlib]
+        extensions = [f.suffix for f in files]
         if '.npy' in extensions: FILE_TYPE = 'npy'
         elif '.tiff' in extensions or '.tif' in extensions: FILE_TYPE = 'tiff'
         if DEBUG: print(f"Initial FILE_TYPE is None, now {FILE_TYPE}")
     if FILE_TYPE == 'npy':
         # How to check whether every npy file is with a json file?
-        npys = [f for f in files_pathlib if f.suffix == '.npy']
+        npys = [f for f in files if f.suffix == '.npy']
         not_processed = []
         processed = []
         for f in npys:
             if DEBUG:
-                print(os.path.join(str(f.parent),f"{str(f.stem)}.json"))
-            if (os.path.join(str(f.parent),f"{str(f.stem)}.json")) not in files: not_processed.append(f)
+                print((f.parent / f"{str(f.stem)}.json"))
+            if (f.parent / f"{str(f.stem)}.json") not in files: not_processed.append(f) # If no corresponding json file
             else: processed.append(f)
         if len(not_processed) != 0:
             print(f"There are some npy without paired json files, please check.\n")
             for i in not_processed: print(str(i))
-        if len(processed) == 0: print(f"There is no npy files paired with json files, exit()"); sys.exit()
+        if len(processed) == 0: raise ValueError(f"There is no npy files paired with json files, exit.")
     elif FILE_TYPE == 'tiff':
-        processed = [f for f in files_pathlib if f.suffix in ['.tif', '.tiff']]
-        if len(processed) == 0: print(f"There is no tiff files, exit()"); sys.exit()
+        processed = [f for f in files if f.suffix.lower() in ['.tif', '.tiff']]
+        if len(processed) == 0: raise ValueError(f"There is no tiff files, exit.")
         pass
-    else: print(f"File type {FILE_TYPE} not defined? exit"); sys.exit()
+    else: raise ValueError(f"File type {FILE_TYPE} not defined? exit")
 
     global PIXEL_SIZE, TIME_STEP, TIME_UNIT, OUTPUT_FOLDER
     if OUTPUT_FOLDER is None: OUTPUT_FOLDER = path / 'analysis_output'
@@ -283,11 +292,21 @@ def main():
             print('There are None (should be error) in the PIV process, continue')
             failed.append(f)
             continue
-        x_result = np.stack([r[0] for r in results])
-        y_result = np.stack([r[1] for r in results])
-        u_result = np.stack([r[2] for r in results])
-        v_result = np.stack([r[3] for r in results])
+        result_flipped = np.flip(results,axis=2) # I think I can do this to flip y axis
+        x_result = np.stack([r[0] for r in result_flipped])
+        y_result = np.stack([r[1] for r in result_flipped])
+        u_result = np.stack([r[2] for r in result_flipped])
+        v_result = np.stack([r[3] for r in result_flipped])
         speed = np.hypot(u_result, v_result)
+        if DEBUG:
+            print(x_result[0])
+            print(y_result[0])
+            print(results[0][2])
+            print(u_result[0])
+            print(v_result[0])
+            print(np.flip(results[0][2],axis=0) == u_result[0])
+            print((np.flip(results[0][2],axis=0) == u_result[0]).all())
+            exit()
         '''
         # If you want to plot the quiver plot of the PIV result, you can do it like this:
         plt.imshow(np.flip(norm_img[0],axis=0), cmap='gray') # plot the first frame
@@ -296,7 +315,7 @@ def main():
         # plt.savefig(OUTPUT_FOLDER / 'quiver.png') # Can directly save this quiver/image overlay.
         '''
         if SAVE_PIV_VIDEOS:
-            save_piv_videos_cv2(np.flip(norm_img, axis=1), x_result, y_result, u_result, v_result,
+            save_piv_videos_cv2(norm_img, x_result, y_result, u_result, v_result,
                                 str(OUTPUT_FOLDER / f"{f.stem}_piv_result.mp4"),
                                 scale=0.8,thickness=1)
         np.savez(str(OUTPUT_FOLDER / f"{f.stem}_piv_result.npz"), x=x_result, y=y_result, u=u_result, v=v_result)
