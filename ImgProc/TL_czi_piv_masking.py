@@ -271,7 +271,7 @@ def main():
 
         ### Start PIV analysis
         frame = img.shape[0]
-        norm_img = [utils.normalize_frame(f) for f in img]
+        norm_img = np.stack([utils.normalize_frame(f) for f in img])
         results = []
         if not MULTIPROCESS:
             for t in tqdm(range(frame-1), desc=f"PIV Processing {f.stem}"):
@@ -292,11 +292,11 @@ def main():
             print('There are None (should be error) in the PIV process, continue')
             failed.append(f)
             continue
-        result_flipped = np.flip(results,axis=2) # I think I can do this to flip y axis
-        x_result = np.stack([r[0] for r in result_flipped])
-        y_result = np.stack([r[1] for r in result_flipped])
-        u_result = np.stack([r[2] for r in result_flipped])
-        v_result = np.stack([r[3] for r in result_flipped])
+        # result_flipped = np.flip(results,axis=2) # I think I can do this to flip y axis
+        x_result = np.stack([r[0] for r in results])
+        y_result = np.stack([r[1] for r in results])
+        u_result = np.stack([r[2] for r in results])
+        v_result = np.stack([r[3] for r in results])
         speed = np.hypot(u_result, v_result)
         if DEBUG:
             print(x_result[0])
@@ -307,6 +307,12 @@ def main():
             print(np.flip(results[0][2],axis=0) == u_result[0])
             print((np.flip(results[0][2],axis=0) == u_result[0]).all())
             exit()
+            '''So the whole problem is: the coordinate of openpiv starts from lower left. So its y axis is inverted like this:
+                (0,2) (1,2) (2,2)
+                (0,1) (1,1) (2,1)
+                (0,0) (1,0) (2,0)
+                so if I plot directly the whole plot will be inverted along y axis. so I flip it.
+                But for quantification the coordinates are according to pixel location, so should not affect too much.'''
         '''
         # If you want to plot the quiver plot of the PIV result, you can do it like this:
         plt.imshow(np.flip(norm_img[0],axis=0), cmap='gray') # plot the first frame
@@ -315,7 +321,7 @@ def main():
         # plt.savefig(OUTPUT_FOLDER / 'quiver.png') # Can directly save this quiver/image overlay.
         '''
         if SAVE_PIV_VIDEOS:
-            save_piv_videos_cv2(norm_img, x_result, y_result, u_result, v_result,
+            save_piv_videos_cv2(norm_img, x_result, np.flip(y_result,axis=1), u_result, v_result,
                                 str(OUTPUT_FOLDER / f"{f.stem}_piv_result.mp4"),
                                 scale=0.8,thickness=1)
         np.savez(str(OUTPUT_FOLDER / f"{f.stem}_piv_result.npz"), x=x_result, y=y_result, u=u_result, v=v_result)
